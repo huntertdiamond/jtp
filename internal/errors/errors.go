@@ -4,6 +4,7 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"sort"
 	"strings"
 )
 
@@ -43,7 +44,7 @@ Usage: %s
 Examples:
   • wtp add feature/auth
   • wtp add -b new-feature
-  • wtp add --track origin/main main`, commandExample)
+  • wtp add -b new-feature --quiet`, commandExample)
 	return errors.New(msg)
 }
 
@@ -102,7 +103,9 @@ func WorktreeCreationFailed(path, branch string, gitError error) error {
 		msg += `
 
 Cause: Branch is already checked out in another worktree
-Solution: Use '--force' flag to allow multiple checkouts, or choose a different branch`
+Solutions:
+  • Choose a different branch
+  • Remove the existing worktree first`
 	} else if strings.Contains(gitErrorStr, "not a valid object name") {
 		msg += `
 
@@ -229,8 +232,7 @@ func ConfigAlreadyExists(configPath string) error {
 
 Options:
   • Edit the existing file manually
-  • Delete it and run 'wtp init' again
-  • Use 'wtp init --force' to overwrite (if that flag exists)`, configPath)
+  • Delete it and run 'wtp init' again`, configPath)
 	return errors.New(msg)
 }
 
@@ -300,16 +302,24 @@ Suggestions:
 	return errors.New(msg)
 }
 
-// MultipleBranchesFound reports that a branch name matches multiple remotes and needs a track specifier.
+// MultipleBranchesFound reports that a branch name matches multiple remotes and needs manual disambiguation.
 func MultipleBranchesFound(branchName string, remotes []string) error {
-	msg := fmt.Sprintf("branch '%s' exists in multiple remotes: %s", branchName, strings.Join(remotes, ", "))
-	msg += fmt.Sprintf(`
+	sortedRemotes := append([]string(nil), remotes...)
+	sort.Strings(sortedRemotes)
 
-Solution: Specify the remote explicitly:
-  • wtp add --track %s/%s %s`, remotes[0], branchName, branchName)
+	msg := fmt.Sprintf("branch '%s' exists in multiple remotes", branchName)
+	if len(sortedRemotes) > 0 {
+		msg += fmt.Sprintf(": %s", strings.Join(sortedRemotes, ", "))
+	}
 
-	if len(remotes) > 1 {
-		msg += fmt.Sprintf("\n  • wtp add --track %s/%s %s", remotes[1], branchName, branchName)
+	msg += "\n\nSolution: Create a local tracking branch for the remote you want " +
+		"without checking it out, then run wtp add again."
+	if len(sortedRemotes) > 0 {
+		msg += "\n\nExamples (choose one remote):"
+		for _, remote := range sortedRemotes {
+			msg += fmt.Sprintf("\n  • git branch --track %s %s/%s", branchName, remote, branchName)
+		}
+		msg += fmt.Sprintf("\n  • wtp add %s", branchName)
 	}
 
 	return errors.New(msg)

@@ -76,6 +76,7 @@ func TestBranchNameRequired(t *testing.T) {
 	assert.Contains(t, err.Error(), "branch name is required")
 	assert.Contains(t, err.Error(), commandExample)
 	assert.Contains(t, err.Error(), "wtp add feature/auth")
+	assert.Contains(t, err.Error(), "wtp add -b new-feature --quiet")
 	assert.Contains(t, err.Error(), "Examples:")
 }
 
@@ -159,7 +160,8 @@ func TestWorktreeCreationFailed(t *testing.T) {
 			expected: []string{
 				"failed to create worktree at '/path/to/worktree' for branch 'feature/auth'",
 				"already checked out",
-				"--force",
+				"Choose a different branch",
+				"Remove the existing worktree first",
 				"Original error:",
 			},
 		},
@@ -306,6 +308,8 @@ func TestConfigAlreadyExists(t *testing.T) {
 	assert.Contains(t, err.Error(), "configuration file already exists")
 	assert.Contains(t, err.Error(), path)
 	assert.Contains(t, err.Error(), "Options:")
+	assert.Contains(t, err.Error(), "Delete it and run 'wtp init' again")
+	assert.NotContains(t, err.Error(), "wtp init --force")
 }
 
 func TestDirectoryAccessFailed(t *testing.T) {
@@ -389,14 +393,17 @@ func TestBranchNotFound(t *testing.T) {
 
 func TestMultipleBranchesFound(t *testing.T) {
 	branchName := "feature"
-	remotes := []string{"origin", "upstream"}
+	remotes := []string{"upstream", "origin"}
 	err := MultipleBranchesFound(branchName, remotes)
 
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "branch 'feature' exists in multiple remotes")
+	assert.Contains(t, err.Error(), "branch 'feature' exists in multiple remotes: origin, upstream")
 	assert.Contains(t, err.Error(), "origin")
 	assert.Contains(t, err.Error(), "upstream")
-	assert.Contains(t, err.Error(), "Specify the remote explicitly")
+	assert.Contains(t, err.Error(), "Create a local tracking branch for the remote you want without checking it out")
+	assert.Contains(t, err.Error(), "git branch --track feature origin/feature")
+	assert.Contains(t, err.Error(), "git branch --track feature upstream/feature")
+	assert.Contains(t, err.Error(), "wtp add feature")
 }
 
 func TestHookExecutionFailed(t *testing.T) {
