@@ -4,12 +4,12 @@
 
 # Macs have bash3 for which the bash-completion package doesn't include
 # _init_completion. This is a minimal version of that function.
-__wtp_init_completion() {
+__jtp_init_completion() {
   COMPREPLY=()
   _get_comp_words_by_ref "$@" cur prev words cword
 }
 
-__wtp_bash_autocomplete() {
+__jtp_bash_autocomplete() {
   if [[ "${COMP_WORDS[0]}" != "source" ]]; then
     local cur opts base words
     COMPREPLY=()
@@ -17,7 +17,7 @@ __wtp_bash_autocomplete() {
     if declare -F _init_completion >/dev/null 2>&1; then
       _init_completion -n "=:" || return
     else
-      __wtp_init_completion -n "=:" || return
+      __jtp_init_completion -n "=:" || return
     fi
     words=("${words[@]:0:$cword}")
     if [[ "$cur" == "-"* ]]; then
@@ -31,5 +31,5 @@ __wtp_bash_autocomplete() {
   fi
 }
 
-complete -o bashdefault -o default -o nospace -F __wtp_bash_autocomplete wtp
+complete -o bashdefault -o default -o nospace -F __jtp_bash_autocomplete jtp
 

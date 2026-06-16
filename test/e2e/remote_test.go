@@ -116,9 +116,7 @@ func TestRemoteConfiguration(t *testing.T) {
 	t.Run("InvalidRemoteURL", func(t *testing.T) {
 		repo := env.CreateTestRepo("invalid-remote")
 
-		// Add remote with invalid URL format
-		_ = env.RunInDir(repo.Path(), "git", "remote", "add", "invalid", "not-a-url")
-		// Git might accept this, but it's still invalid
+		repo.AddRemote("invalid", "not-a-url")
 
 		repo.CreateRemoteBranch("invalid", "test-branch")
 

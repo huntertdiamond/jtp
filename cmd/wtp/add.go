@@ -23,8 +23,10 @@ import (
 	wtpio "github.com/satococoa/wtp/v2/internal/io"
 )
 
-const addUsageText = "wtp add <existing-branch> [--quiet]\n" +
-	"       wtp add -b <new-branch> [<commit>] [--quiet]"
+const addUsageText = "jtp add <existing-branch> [--quiet]\n" +
+	"       jtp add -b <new-branch> [<commit>] [--quiet]"
+
+const worktreeParentDirPerm = 0o750
 
 // NewAddCommand creates the add command definition
 func NewAddCommand() *cli.Command {
@@ -35,11 +37,11 @@ func NewAddCommand() *cli.Command {
 		Description: "Creates a new worktree for the specified branch. If the branch doesn't exist locally " +
 			"but exists on a remote, it will be automatically tracked.\n\n" +
 			"Examples:\n" +
-			"  wtp add feature/auth                    # Create worktree from existing branch\n" +
-			"  wtp add -b new-feature                  # Create new branch and worktree\n" +
-			"  wtp add -b hotfix/urgent main           # Create new branch from main commit\n" +
-			"  wtp add -b feature/x --quiet            # Output only the created path\n" +
-			"  wtp add -b feature/x --exec \"npm test\" # Execute command in the new worktree",
+			"  jtp add feature/auth                    # Create worktree from existing branch\n" +
+			"  jtp add -b new-feature                  # Create new branch and worktree\n" +
+			"  jtp add -b hotfix/urgent main           # Create new branch from main commit\n" +
+			"  jtp add -b feature/x --quiet            # Output only the created path\n" +
+			"  jtp add -b feature/x --exec \"npm test\" # Execute command in the new worktree",
 		ShellComplete: completeBranches,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -96,6 +98,7 @@ func addCommandWithCommandExecutor(
 	return addCommandWithCommandExecutorWithWriters(cmd, stdoutWriter, statusWriter, cmdExec, cfg, mainRepoPath)
 }
 
+//nolint:gocyclo // Coordinates validation, jj execution, hooks, exec, and output handling.
 func addCommandWithCommandExecutorWithWriters(
 	cmd *cli.Command,
 	stdoutWriter io.Writer,
@@ -111,6 +114,12 @@ func addCommandWithCommandExecutorWithWriters(
 	}
 
 	workTreePath, branchName := resolveWorktreePath(cfg, mainRepoPath, firstArg, cmd)
+	if err := validateBranchLikeName(branchName); err != nil {
+		return err
+	}
+	if err := ensureWorktreeParentDir(mainRepoPath, workTreePath); err != nil {
+		return err
+	}
 
 	// Resolve branch if needed
 	resolvedTrack, err := resolveBranchTracking(cmd, branchName, mainRepoPath)
@@ -119,7 +128,10 @@ func addCommandWithCommandExecutorWithWriters(
 	}
 
 	// Build git worktree command using the new command builder
-	worktreeCmd := buildWorktreeCommand(cmd, workTreePath, branchName, resolvedTrack)
+	worktreeCmd, err := buildWorktreeCommand(cmd, workTreePath, branchName, resolvedTrack, mainRepoPath)
+	if err != nil {
+		return err
+	}
 
 	// Execute the command
 	result, err := cmdExec.Execute([]command.Command{worktreeCmd})
@@ -134,6 +146,13 @@ func addCommandWithCommandExecutorWithWriters(
 
 		// Analyze git error output for better error messages
 		return analyzeGitWorktreeError(workTreePath, branchName, gitError, gitOutput)
+	}
+
+	bookmarkName := bookmarkNameForCreatedWorkspace(cmd, branchName, resolvedTrack)
+	if bookmarkName != "" && pathExists(mainRepoPath) {
+		if err := createBookmarkForNewWorkspace(cmdExec, workTreePath, bookmarkName); err != nil {
+			return err
+		}
 	}
 
 	if err := executePostCreateHooks(statusWriter, cfg, mainRepoPath, workTreePath); err != nil {
@@ -166,6 +185,33 @@ func addCommandWithCommandExecutorWithWriters(
 	return nil
 }
 
+func pathExists(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+func bookmarkNameForCreatedWorkspace(cmd *cli.Command, branchName, resolvedTrack string) string {
+	if newBranch := cmd.String("branch"); newBranch != "" {
+		return newBranch
+	}
+	if resolvedTrack != "" {
+		return branchName
+	}
+	return ""
+}
+
+func ensureWorktreeParentDir(mainRepoPath, workTreePath string) error {
+	if !pathExists(mainRepoPath) {
+		return nil
+	}
+
+	parent := filepath.Dir(workTreePath)
+	if err := os.MkdirAll(parent, worktreeParentDirPerm); err != nil {
+		return errors.DirectoryAccessFailed("create worktree parent", parent, err)
+	}
+	return nil
+}
+
 func resolveAddWriters(cmd *cli.Command) (stdoutWriter, statusWriter io.Writer) {
 	stdoutWriter = cmd.Root().Writer
 	if stdoutWriter == nil {
@@ -185,8 +231,8 @@ func resolveAddWriters(cmd *cli.Command) (stdoutWriter, statusWriter io.Writer) 
 
 // buildWorktreeCommand builds a git worktree command using the new command package
 func buildWorktreeCommand(
-	cmd *cli.Command, workTreePath, _, resolvedTrack string,
-) command.Command {
+	cmd *cli.Command, workTreePath, _, resolvedTrack, mainRepoPath string,
+) (command.Command, error) {
 	opts := command.GitWorktreeAddOptions{
 		Branch: cmd.String("branch"),
 	}
@@ -215,7 +261,26 @@ func buildWorktreeCommand(
 		}
 	}
 
-	return command.GitWorktreeAdd(workTreePath, commitish, opts)
+	normalizedCommitish, err := normalizeCommitish(mainRepoPath, commitish)
+	if err != nil {
+		return command.Command{}, err
+	}
+	return command.GitWorktreeAdd(workTreePath, normalizedCommitish, opts), nil
+}
+
+func normalizeCommitish(mainRepoPath, commitish string) (string, error) {
+	if commitish == "" {
+		return "", nil
+	}
+	if !pathExists(mainRepoPath) {
+		return commitish, nil
+	}
+
+	repo, err := git.NewRepository(mainRepoPath)
+	if err != nil {
+		return "", err
+	}
+	return repo.NormalizeRevision(commitish)
 }
 
 // analyzeGitWorktreeError analyzes git worktree errors and provides specific error messages
@@ -353,7 +418,7 @@ func (e *BranchAlreadyExistsError) Error() string {
 The branch '%s' already exists in this repository.
 
 Solutions:
-  • Run 'wtp add %s' to create a worktree for the existing branch
+  • Run 'jtp add %s' to create a worktree for the existing branch
   • Choose a different branch name with '--branch'
   • Delete the existing branch if it's no longer needed
 
@@ -476,6 +541,37 @@ func validateAddInput(cmd *cli.Command) error {
 	return nil
 }
 
+func validateBranchLikeName(branchName string) error {
+	if branchName == "" {
+		return nil
+	}
+	if strings.Contains(branchName, "..") ||
+		strings.Contains(branchName, "@{") ||
+		strings.ContainsAny(branchName, " \t\n\r~^:") {
+		return errors.InvalidBranchName(branchName)
+	}
+	return nil
+}
+
+func createBookmarkForNewWorkspace(cmdExec command.Executor, workTreePath, branchName string) error {
+	result, err := cmdExec.Execute([]command.Command{{
+		Name:    "jj",
+		Args:    []string{"bookmark", "create", branchName, "-r", "@-"},
+		WorkDir: workTreePath,
+	}})
+	if err != nil {
+		return err
+	}
+	if len(result.Results) > 0 && result.Results[0].Error != nil {
+		output := result.Results[0].Output
+		if output != "" {
+			return fmt.Errorf("failed to create bookmark %q: %w: %s", branchName, result.Results[0].Error, output)
+		}
+		return fmt.Errorf("failed to create bookmark %q: %w", branchName, result.Results[0].Error)
+	}
+	return nil
+}
+
 func setupRepoAndConfig() (*git.Repository, *config.Config, string, error) {
 	cwd, err := os.Getwd()
 	if err != nil {
@@ -509,10 +605,9 @@ func getBranches(w io.Writer) error {
 		return err
 	}
 
-	// Get all branches using git for-each-ref for better control
-	gitCmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)", "refs/heads", "refs/remotes")
-	gitCmd.Dir = cwd
-	output, err := gitCmd.Output()
+	jjCmd := exec.Command("jj", "bookmark", "list", "--all-remotes", "--template", `name ++ "\n"`)
+	jjCmd.Dir = cwd
+	output, err := jjCmd.Output()
 	if err != nil {
 		return err
 	}
@@ -527,16 +622,13 @@ func getBranches(w io.Writer) error {
 			continue
 		}
 
-		// Skip HEAD references and bare origin
-		if branch == "origin/HEAD" || branch == "origin" {
+		if strings.HasSuffix(branch, "@git") {
 			continue
 		}
 
-		// Remove remote prefix for display, but keep track of what we've seen
 		displayName := branch
-		if strings.HasPrefix(branch, "origin/") {
-			// For remote branches, show without the origin/ prefix
-			displayName = strings.TrimPrefix(branch, "origin/")
+		if name, _, found := strings.Cut(branch, "@"); found {
+			displayName = name
 		}
 
 		// Skip if already seen (handles case where local and remote have same name)
@@ -617,7 +709,7 @@ func displaySuccessMessageWithCommitish(
 	// Use the consistent worktree naming logic
 	isMain := isMainWorktree(workTreePath, mainRepoPath)
 	worktreeName := getWorktreeNameFromPath(workTreePath, cfg, mainRepoPath, isMain)
-	if _, err := fmt.Fprintf(w, "   wtp cd %s\n", worktreeName); err != nil {
+	if _, err := fmt.Fprintf(w, "   jtp cd %s\n", worktreeName); err != nil {
 		return err
 	}
 

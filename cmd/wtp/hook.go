@@ -14,12 +14,12 @@ func NewHookCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "hook",
 		Usage: "Generate shell hook for cd functionality",
-		Description: "Generate shell hook scripts that enable the 'wtp cd' command to change directories. " +
+		Description: "Generate shell hook scripts that enable the 'jtp cd' command to change directories. " +
 			"This provides a seamless navigation experience without needing subshells.\n\n" +
 			"To enable the hook, add the following to your shell config:\n" +
-			"  Bash (~/.bashrc):         eval \"$(wtp hook bash)\"\n" +
-			"  Zsh (~/.zshrc):           eval \"$(wtp hook zsh)\"\n" +
-			"  Fish (~/.config/fish/config.fish): wtp hook fish | source",
+			"  Bash (~/.bashrc):         eval \"$(jtp hook bash)\"\n" +
+			"  Zsh (~/.zshrc):           eval \"$(jtp hook zsh)\"\n" +
+			"  Fish (~/.config/fish/config.fish): jtp hook fish | source",
 		Commands: []*cli.Command{
 			{
 				Name:        "bash",
@@ -68,52 +68,52 @@ func hookFish(_ context.Context, cmd *cli.Command) error {
 }
 
 func printBashHook(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `# wtp cd command hook for bash
-wtp() {
+	_, err := fmt.Fprintln(w, `# jtp cd command hook for bash
+jtp() {
     for arg in "$@"; do
         if [[ "$arg" == "--generate-shell-completion" ]]; then
-            command wtp "$@"
+            command jtp "$@"
             return $?
         fi
     done
     if [[ "$1" == "cd" ]]; then
         local target_dir
         if [[ -z "$2" ]]; then
-            target_dir=$(command wtp cd 2>/dev/null)
+            target_dir=$(command jtp cd 2>/dev/null)
         else
-            target_dir=$(command wtp cd "$2" 2>/dev/null)
+            target_dir=$(command jtp cd "$2" 2>/dev/null)
         fi
         if [[ $? -eq 0 && -n "$target_dir" ]]; then
             cd "$target_dir"
         else
             if [[ -z "$2" ]]; then
-                command wtp cd
+                command jtp cd
             else
-                command wtp cd "$2"
+                command jtp cd "$2"
             fi
         fi
     elif [[ "$1" == "add" ]]; then
         for arg in "$@"; do
             if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-                command wtp "$@"
+                command jtp "$@"
                 return $?
             fi
         done
 
         if [[ ! -t 1 ]]; then
-            command wtp "$@"
+            command jtp "$@"
             return $?
         fi
 
         local target_dir
-        target_dir=$(command wtp "$@" --quiet)
-        local wtp_status=$?
-        if [[ $wtp_status -eq 0 && -n "$target_dir" ]]; then
+        target_dir=$(command jtp "$@" --quiet)
+        local jtp_status=$?
+        if [[ $jtp_status -eq 0 && -n "$target_dir" ]]; then
             cd "$target_dir" || return $?
         fi
-        return $wtp_status
+        return $jtp_status
     else
-        command wtp "$@"
+        command jtp "$@"
     fi
 }`)
 
@@ -121,52 +121,52 @@ wtp() {
 }
 
 func printZshHook(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `# wtp cd command hook for zsh
-wtp() {
+	_, err := fmt.Fprintln(w, `# jtp cd command hook for zsh
+jtp() {
     for arg in "$@"; do
         if [[ "$arg" == "--generate-shell-completion" ]]; then
-            command wtp "$@"
+            command jtp "$@"
             return $?
         fi
     done
     if [[ "$1" == "cd" ]]; then
         local target_dir
         if [[ -z "$2" ]]; then
-            target_dir=$(command wtp cd 2>/dev/null)
+            target_dir=$(command jtp cd 2>/dev/null)
         else
-            target_dir=$(command wtp cd "$2" 2>/dev/null)
+            target_dir=$(command jtp cd "$2" 2>/dev/null)
         fi
         if [[ $? -eq 0 && -n "$target_dir" ]]; then
             cd "$target_dir"
         else
             if [[ -z "$2" ]]; then
-                command wtp cd
+                command jtp cd
             else
-                command wtp cd "$2"
+                command jtp cd "$2"
             fi
         fi
     elif [[ "$1" == "add" ]]; then
         for arg in "$@"; do
             if [[ "$arg" == "--help" || "$arg" == "-h" ]]; then
-                command wtp "$@"
+                command jtp "$@"
                 return $?
             fi
         done
 
         if [[ ! -t 1 ]]; then
-            command wtp "$@"
+            command jtp "$@"
             return $?
         fi
 
         local target_dir
-        target_dir=$(command wtp "$@" --quiet)
-        local wtp_status=$?
-        if [[ $wtp_status -eq 0 && -n "$target_dir" ]]; then
+        target_dir=$(command jtp "$@" --quiet)
+        local jtp_status=$?
+        if [[ $jtp_status -eq 0 && -n "$target_dir" ]]; then
             cd "$target_dir" || return $?
         fi
-        return $wtp_status
+        return $jtp_status
     else
-        command wtp "$@"
+        command jtp "$@"
     fi
 }`)
 
@@ -174,52 +174,52 @@ wtp() {
 }
 
 func printFishHook(w io.Writer) error {
-	_, err := fmt.Fprintln(w, `# wtp cd command hook for fish
-function wtp
+	_, err := fmt.Fprintln(w, `# jtp cd command hook for fish
+function jtp
     for arg in $argv
         if test "$arg" = "--generate-shell-completion"
-            command wtp $argv
+            command jtp $argv
             return $status
         end
     end
     if test "$argv[1]" = "cd"
         set -l target_dir
         if test -z "$argv[2]"
-            set target_dir (command wtp cd 2>/dev/null)
+            set target_dir (command jtp cd 2>/dev/null)
         else
-            set target_dir (command wtp cd $argv[2] 2>/dev/null)
+            set target_dir (command jtp cd $argv[2] 2>/dev/null)
         end
         if test $status -eq 0 -a -n "$target_dir"
             cd "$target_dir"
         else
             if test -z "$argv[2]"
-                command wtp cd
+                command jtp cd
             else
-                command wtp cd $argv[2]
+                command jtp cd $argv[2]
             end
         end
     else if test "$argv[1]" = "add"
         for arg in $argv
             if test "$arg" = "--help"; or test "$arg" = "-h"
-                command wtp $argv
+                command jtp $argv
                 return $status
             end
         end
 
         if not isatty stdout
-            command wtp $argv
+            command jtp $argv
             return $status
         end
 
-        set -l target_dir (command wtp $argv --quiet)
-        set -l wtp_status $status
-        if test $wtp_status -eq 0 -a -n "$target_dir"
+        set -l target_dir (command jtp $argv --quiet)
+        set -l jtp_status $status
+        if test $jtp_status -eq 0 -a -n "$target_dir"
             cd "$target_dir"
             or return $status
         end
-        return $wtp_status
+        return $jtp_status
     else
-        command wtp $argv
+        command jtp $argv
     end
 end`)
 

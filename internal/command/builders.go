@@ -1,7 +1,7 @@
-// Package command provides helpers to build and execute git commands.
+// Package command provides helpers to build and execute jj commands.
 package command
 
-// GitWorktreeAddOptions represents options for git worktree add command
+// GitWorktreeAddOptions represents options for jj workspace add command.
 type GitWorktreeAddOptions struct {
 	Force  bool
 	Detach bool
@@ -9,81 +9,55 @@ type GitWorktreeAddOptions struct {
 	Track  string
 }
 
-// GitWorktreeAdd builds a git worktree add command
+// GitWorktreeAdd builds a jj workspace add command.
 func GitWorktreeAdd(path, commitish string, opts GitWorktreeAddOptions) Command {
-	args := []string{"worktree", "add"}
-
-	// Add flags
-	if opts.Force {
-		args = append(args, "--force")
+	workspaceName := opts.Branch
+	if workspaceName == "" {
+		workspaceName = extractBranchName(commitish)
 	}
-	if opts.Detach {
-		args = append(args, "--detach")
-	}
-	if opts.Branch != "" {
-		args = append(args, "-b", opts.Branch)
-	}
-	if opts.Track != "" {
-		args = append(args, "--track")
-		if !opts.Detach && opts.Branch == "" {
-			// When tracking without explicit branch, create branch with same name
-			args = append(args, "-b", extractBranchName(commitish))
-		}
+	if workspaceName == "" {
+		workspaceName = pathBase(path)
 	}
 
-	// Add path
-	args = append(args, path)
-
-	// Add commitish if provided
+	args := []string{"workspace", "add", "--name", workspaceName}
 	if commitish != "" {
-		args = append(args, commitish)
+		args = append(args, "--revision", commitish)
 	}
-
-	return Command{
-		Name: "git",
-		Args: args,
-	}
-}
-
-// GitBranchDelete builds a git branch delete command
-func GitBranchDelete(branchName string, force bool) Command {
-	args := []string{"branch"}
-
-	if force {
-		args = append(args, "-D")
-	} else {
-		args = append(args, "-d")
-	}
-
-	args = append(args, branchName)
-
-	return Command{
-		Name: "git",
-		Args: args,
-	}
-}
-
-// GitWorktreeRemove builds a git worktree remove command
-func GitWorktreeRemove(path string, force bool) Command {
-	args := []string{"worktree", "remove"}
-
-	if force {
-		args = append(args, "--force")
-	}
-
 	args = append(args, path)
 
 	return Command{
-		Name: "git",
+		Name: "jj",
 		Args: args,
 	}
 }
 
-// GitWorktreeList builds a git worktree list command
+// GitBranchDelete builds a jj bookmark delete command.
+func GitBranchDelete(branchName string, _ bool) Command {
+	args := []string{"bookmark", "delete", branchName}
+	return Command{
+		Name: "jj",
+		Args: args,
+	}
+}
+
+// GitWorktreeRemove builds a jj workspace forget command.
+func GitWorktreeRemove(path string, _ bool) Command {
+	return Command{
+		Name: "jj",
+		Args: []string{"workspace", "forget", path},
+	}
+}
+
+// GitWorktreeList builds a jj workspace list command.
 func GitWorktreeList() Command {
 	return Command{
-		Name: "git",
-		Args: []string{"worktree", "list", "--porcelain"},
+		Name: "jj",
+		Args: []string{
+			"workspace",
+			"list",
+			"--template",
+			`name ++ "\t" ++ target.commit_id().short() ++ "\t" ++ target.bookmarks() ++ "\n"`,
+		},
 	}
 }
 
@@ -103,4 +77,13 @@ func extractBranchName(ref string) string {
 	}
 
 	return ref
+}
+
+func pathBase(path string) string {
+	for i := len(path) - 1; i >= 0; i-- {
+		if path[i] == '/' || path[i] == '\\' {
+			return path[i+1:]
+		}
+	}
+	return path
 }

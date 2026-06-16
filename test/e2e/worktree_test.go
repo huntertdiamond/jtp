@@ -142,7 +142,15 @@ func TestWorktreeRemoval(t *testing.T) {
 		repo := env.CreateTestRepo("remove-different-basedir")
 
 		// Create worktree with default location
-		env.RunInDir(repo.Path(), "git", "worktree", "add", "../worktrees/feature/remove-test", "-b", "feature/remove-test")
+		env.RunInDir(
+			repo.Path(),
+			"jj",
+			"workspace",
+			"add",
+			"--name",
+			"feature/remove-test",
+			"../worktrees/feature/remove-test",
+		)
 
 		// Create config with different base_dir
 		configContent := `version: 1
@@ -260,7 +268,7 @@ defaults:
 
 		// Check if worktree was created in custom base_dir
 		customPath := repo.Path() + "/custom-worktrees/feature/custom-dir"
-		framework.AssertTrue(t, env.FileExists(customPath+"/.git"), "Worktree .git should exist")
+		framework.AssertTrue(t, env.FileExists(customPath+"/.jj"), "Worktree .jj should exist")
 		framework.AssertOutputContains(t, output, "custom-worktrees/feature/custom-dir")
 	})
 

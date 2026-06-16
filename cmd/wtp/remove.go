@@ -32,12 +32,12 @@ func NewRemoveCommand() *cli.Command {
 		Name:      "remove",
 		Aliases:   []string{"rm"},
 		Usage:     "Remove a worktree",
-		UsageText: "wtp remove <worktree-name>",
+		UsageText: "jtp remove <worktree-name>",
 		Description: "Removes the worktree with the specified directory name.\n\n" +
 			"Examples:\n" +
-			"  wtp remove feature-old                  # Remove worktree\n" +
-			"  wtp remove -f feature-dirty             # Force remove dirty worktree\n" +
-			"  wtp remove --with-branch feature-done   # Also delete the associated branch",
+			"  jtp remove feature-old                  # Remove worktree\n" +
+			"  jtp remove -f feature-dirty             # Force remove dirty worktree\n" +
+			"  jtp remove --with-branch feature-done   # Also delete the associated branch",
 		ShellComplete: completeWorktrees,
 		Flags: []cli.Flag{
 			&cli.BoolFlag{
@@ -82,14 +82,60 @@ func removeCommand(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Initialize repository to check if we're in a git repo
-	_, err = git.NewRepository(cwd)
+	repo, err := git.NewRepository(cwd)
 	if err != nil {
 		return errors.NotInGitRepository()
 	}
 
-	// Use CommandExecutor-based implementation
-	executor := command.NewRealExecutor()
-	return removeCommandWithCommandExecutor(cmd, w, executor, cwd, worktreeName, force, withBranch, forceBranch)
+	return removeCommandWithRepository(w, repo, cwd, worktreeName, force, withBranch, forceBranch)
+}
+
+func removeCommandWithRepository(
+	w io.Writer,
+	repo *git.Repository,
+	cwd string,
+	worktreeName string,
+	force, withBranch, forceBranch bool,
+) error {
+	worktrees, err := repo.GetWorktrees()
+	if err != nil {
+		return errors.GitCommandFailed("jj workspace list", err.Error())
+	}
+
+	targetWorktree, err := findTargetWorktreeFromList(worktrees, worktreeName)
+	if err != nil {
+		return err
+	}
+
+	absTargetPath, err := filepath.Abs(targetWorktree.Path)
+	if err != nil {
+		return errors.WorktreeRemovalFailed(targetWorktree.Path, err)
+	}
+
+	absCwd, err := filepath.Abs(cwd)
+	if err != nil {
+		return errors.DirectoryAccessFailed("access current", cwd, err)
+	}
+
+	if isPathWithin(absTargetPath, absCwd) {
+		return errors.CannotRemoveCurrentWorktree(worktreeName, absTargetPath)
+	}
+
+	if err := repo.RemoveWorktree(targetWorktree.Path, force); err != nil {
+		return errors.WorktreeRemovalFailed(targetWorktree.Path, err)
+	}
+	if _, err := fmt.Fprintf(w, "Removed worktree '%s' at %s\n", worktreeName, targetWorktree.Path); err != nil {
+		return err
+	}
+
+	if withBranch && targetWorktree.Branch != "" {
+		executor := command.NewRealExecutor()
+		if err := removeBranchWithCommandExecutor(w, executor, targetWorktree.Branch, forceBranch); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func removeCommandWithCommandExecutor(

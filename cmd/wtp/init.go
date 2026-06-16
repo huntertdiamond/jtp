@@ -63,7 +63,7 @@ func initCommand(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Create configuration with comments
-	configContent := `# Worktree Plus Configuration
+	configContent := `# JTP Configuration
 version: "1.0"
 
 # Default settings for worktrees
@@ -82,7 +82,7 @@ hooks:
 
     # Example: Run a command to show all worktrees
     - type: command
-      command: wtp list
+      command: jtp list
 
     # More examples (commented out):
     

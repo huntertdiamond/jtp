@@ -67,13 +67,13 @@ func patchCompletionScript(shell, script string) string {
 }
 
 func patchZshCompletionScript(script string) string {
-	if strings.Contains(script, "WTP_SHELL_COMPLETION=1") {
+	if strings.Contains(script, "JTP_SHELL_COMPLETION=1") {
 		return script
 	}
 
-	currentReplacement := "opts=(\"${(@f)$(env WTP_SHELL_COMPLETION=1 ${words[@]:0:#words[@]-1} " +
+	currentReplacement := "opts=(\"${(@f)$(env JTP_SHELL_COMPLETION=1 ${words[@]:0:#words[@]-1} " +
 		"${current} --generate-shell-completion)}\")"
-	subcommandReplacement := "opts=(\"${(@f)$(env WTP_SHELL_COMPLETION=1 ${words[@]:0:#words[@]-1} " +
+	subcommandReplacement := "opts=(\"${(@f)$(env JTP_SHELL_COMPLETION=1 ${words[@]:0:#words[@]-1} " +
 		"--generate-shell-completion)}\")"
 
 	replacements := []struct {
@@ -98,9 +98,9 @@ func patchZshCompletionScript(script string) string {
 }
 
 func buildFishCompletionScript() string {
-	return `# wtp fish shell completion
+	return `# jtp fish shell completion
 
-function __fish_wtp_dynamic_complete --description 'wtp dynamic completion helper'
+function __fish_jtp_dynamic_complete --description 'jtp dynamic completion helper'
 	set -l tokens (commandline -opc)
 	set -l args
 	set -l token_count (count $tokens)
@@ -118,11 +118,11 @@ function __fish_wtp_dynamic_complete --description 'wtp dynamic completion helpe
 
 	set args $args --generate-shell-completion
 
-	if not command -sq wtp
+	if not command -sq jtp
 		return
 	end
 
-	set -l raw (WTP_SHELL_COMPLETION=1 command wtp $args)
+	set -l raw (JTP_SHELL_COMPLETION=1 command jtp $args)
 	for line in $raw
 		if test -z "$line"
 			continue
@@ -141,17 +141,17 @@ function __fish_wtp_dynamic_complete --description 'wtp dynamic completion helpe
 	end
 end
 
-complete -c wtp -f -a '(__fish_wtp_dynamic_complete)'
+complete -c jtp -f -a '(__fish_jtp_dynamic_complete)'
 `
 }
 
 func patchBashCompletionScript(script string) string {
-	if strings.Contains(script, "_wtp_sanitize_completion_list") {
+	if strings.Contains(script, "_jtp_sanitize_completion_list") {
 		return script
 	}
 
 	const helper = `
-_wtp_sanitize_completion_list() {
+_jtp_sanitize_completion_list() {
 	local line suffix result=()
 	while IFS= read -r line; do
 		if [[ "$line" == *:* ]]; then
@@ -167,11 +167,11 @@ _wtp_sanitize_completion_list() {
 }
 `
 
-	script = strings.Replace(script, "__wtp_bash_autocomplete() {", helper+"\n__wtp_bash_autocomplete() {", 1)
+	script = strings.Replace(script, "__jtp_bash_autocomplete() {", helper+"\n__jtp_bash_autocomplete() {", 1)
 
 	const target = "    opts=$(eval \"${requestComp}\" 2>/dev/null)\n    COMPREPLY=($(compgen -W \"${opts}\" -- ${cur}))"
-	const replacement = "    opts=$(WTP_SHELL_COMPLETION=1 eval \"${requestComp}\" 2>/dev/null)\n" +
-		"    opts=$(_wtp_sanitize_completion_list <<<\"${opts}\")\n" +
+	const replacement = "    opts=$(JTP_SHELL_COMPLETION=1 eval \"${requestComp}\" 2>/dev/null)\n" +
+		"    opts=$(_jtp_sanitize_completion_list <<<\"${opts}\")\n" +
 		"    COMPREPLY=($(compgen -W \"${opts}\" -- ${cur}))"
 
 	script = strings.Replace(script, target, replacement, 1)
@@ -239,7 +239,7 @@ func filterCompletionArgs(args []string) []string {
 }
 
 func inShellCompletionContext() bool {
-	if os.Getenv("WTP_SHELL_COMPLETION") != "" {
+	if os.Getenv("JTP_SHELL_COMPLETION") != "" {
 		return true
 	}
 	if os.Getenv("COMP_LINE") != "" {

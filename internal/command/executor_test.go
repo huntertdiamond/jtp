@@ -178,7 +178,7 @@ func TestExtractBranchName(t *testing.T) {
 
 // Test command builder functions
 func TestCommandBuilder(t *testing.T) {
-	t.Run("should build git worktree add command", func(t *testing.T) {
+	t.Run("should build jj workspace add command", func(t *testing.T) {
 		// When: building a worktree add command
 		cmd := GitWorktreeAdd("../worktrees/feature", "feature", GitWorktreeAddOptions{
 			Force:  true,
@@ -186,13 +186,13 @@ func TestCommandBuilder(t *testing.T) {
 		})
 
 		// Then: command should have correct structure
-		assert.Equal(t, "git", cmd.Name)
+		assert.Equal(t, "jj", cmd.Name)
 		assert.Equal(t,
-			[]string{"worktree", "add", "--force", "-b", "new-feature", "../worktrees/feature", "feature"},
+			[]string{"workspace", "add", "--name", "new-feature", "--revision", "feature", "../worktrees/feature"},
 			cmd.Args)
 	})
 
-	t.Run("should build git worktree remove command", func(t *testing.T) {
+	t.Run("should build jj workspace forget command", func(t *testing.T) {
 		// Given: a worktree path to remove
 		path := "../worktrees/feature"
 
@@ -200,11 +200,11 @@ func TestCommandBuilder(t *testing.T) {
 		cmd := GitWorktreeRemove(path, false)
 
 		// Then: command should have correct structure
-		assert.Equal(t, "git", cmd.Name)
-		assert.Equal(t, []string{"worktree", "remove", path}, cmd.Args)
+		assert.Equal(t, "jj", cmd.Name)
+		assert.Equal(t, []string{"workspace", "forget", path}, cmd.Args)
 	})
 
-	t.Run("should build forced git worktree remove command", func(t *testing.T) {
+	t.Run("should build forced jj workspace forget command", func(t *testing.T) {
 		// Given: a worktree path to remove forcefully
 		path := "../worktrees/feature"
 
@@ -212,35 +212,40 @@ func TestCommandBuilder(t *testing.T) {
 		cmd := GitWorktreeRemove(path, true)
 
 		// Then: command should include force flag
-		assert.Equal(t, "git", cmd.Name)
-		assert.Equal(t, []string{"worktree", "remove", "--force", path}, cmd.Args)
+		assert.Equal(t, "jj", cmd.Name)
+		assert.Equal(t, []string{"workspace", "forget", path}, cmd.Args)
 	})
 
-	t.Run("should build git worktree list command", func(t *testing.T) {
+	t.Run("should build jj workspace list command", func(t *testing.T) {
 		// When: building a worktree list command
 		cmd := GitWorktreeList()
 
 		// Then: command should have correct structure
-		assert.Equal(t, "git", cmd.Name)
-		assert.Equal(t, []string{"worktree", "list", "--porcelain"}, cmd.Args)
+		assert.Equal(t, "jj", cmd.Name)
+		assert.Equal(t, []string{
+			"workspace",
+			"list",
+			"--template",
+			`name ++ "\t" ++ target.commit_id().short() ++ "\t" ++ target.bookmarks() ++ "\n"`,
+		}, cmd.Args)
 	})
 
-	t.Run("should build git branch delete command", func(t *testing.T) {
+	t.Run("should build jj bookmark delete command", func(t *testing.T) {
 		// When: building a branch delete command
 		cmd := GitBranchDelete("old-feature", false)
 
 		// Then: command should have correct structure
-		assert.Equal(t, "git", cmd.Name)
-		assert.Equal(t, []string{"branch", "-d", "old-feature"}, cmd.Args)
+		assert.Equal(t, "jj", cmd.Name)
+		assert.Equal(t, []string{"bookmark", "delete", "old-feature"}, cmd.Args)
 	})
 
-	t.Run("should build forced branch delete command", func(t *testing.T) {
+	t.Run("should build forced bookmark delete command", func(t *testing.T) {
 		// When: building a forced branch delete command
 		cmd := GitBranchDelete("old-feature", true)
 
 		// Then: command should have correct structure
-		assert.Equal(t, "git", cmd.Name)
-		assert.Equal(t, []string{"branch", "-D", "old-feature"}, cmd.Args)
+		assert.Equal(t, "jj", cmd.Name)
+		assert.Equal(t, []string{"bookmark", "delete", "old-feature"}, cmd.Args)
 	})
 }
 

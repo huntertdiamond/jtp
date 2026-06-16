@@ -6,72 +6,32 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-
-	"github.com/satococoa/wtp/v2/internal/testutil"
 )
 
 func setupTestRepo(t *testing.T) string {
 	tempDir := t.TempDir()
 
-	runGitCommand := func(dir string, args ...string) {
-		t.Helper()
-
-		cmd := exec.Command("git", args...)
-		cmd.Dir = dir
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("Failed to run git %v: %v", args, err)
-		}
-	}
-
-	// Initialize git repository
-	cmd := exec.Command("git", "init")
+	cmd := exec.Command("jj", "git", "init")
 	cmd.Dir = tempDir
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to init git repo: %v", err)
+		t.Fatalf("Failed to init jj repo: %v", err)
 	}
 
-	// Set default branch to main (works with older git versions too)
-	cmd = exec.Command("git", "config", "init.defaultBranch", "main")
-	cmd.Dir = tempDir
-	_ = cmd.Run() // Ignore error if git version is too old
-
-	testutil.ConfigureTestRepo(t, tempDir, runGitCommand)
-
-	// Create initial commit
 	readmeFile := filepath.Join(tempDir, "README.md")
 	if err := os.WriteFile(readmeFile, []byte("# Test Repo"), 0644); err != nil {
 		t.Fatalf("Failed to write README: %v", err)
 	}
 
-	cmd = exec.Command("git", "add", "README.md")
+	cmd = exec.Command("jj", "describe", "-m", "Initial commit")
 	cmd.Dir = tempDir
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to add README: %v", err)
+		t.Fatalf("Failed to describe initial change: %v", err)
 	}
 
-	cmd = exec.Command("git", "commit", "-m", "Initial commit")
+	cmd = exec.Command("jj", "bookmark", "create", "main", "-r", "@")
 	cmd.Dir = tempDir
 	if err := cmd.Run(); err != nil {
-		t.Fatalf("Failed to commit: %v", err)
-	}
-
-	// Ensure the default branch is named 'main'
-	// Check current branch name
-	cmd = exec.Command("git", "branch", "--show-current")
-	cmd.Dir = tempDir
-	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("Failed to get current branch: %v", err)
-	}
-
-	currentBranch := strings.TrimSpace(string(output))
-	if currentBranch == "master" {
-		// Rename master to main
-		cmd = exec.Command("git", "branch", "-m", "master", "main")
-		cmd.Dir = tempDir
-		if err := cmd.Run(); err != nil {
-			t.Fatalf("Failed to rename branch to main: %v", err)
-		}
+		t.Fatalf("Failed to create main bookmark: %v", err)
 	}
 
 	return tempDir
@@ -186,7 +146,7 @@ func TestExecuteGitCommand(t *testing.T) {
 	}
 
 	// Test command with arguments
-	err = repo.ExecuteGitCommand("log", "--oneline", "-1")
+	err = repo.ExecuteGitCommand("log", "--no-graph", "-n", "1")
 	if err != nil {
 		t.Errorf("Expected no error but got: %v", err)
 	}
@@ -265,39 +225,7 @@ func TestBranchResolution(t *testing.T) {
 	// Create a temporary directory for test repository
 	repoDir := setupTestRepo(t)
 
-	// Create local branch
-	runCmd(t, repoDir, "git", "branch", "local-feature")
-
-	// Add remotes and their branches
-	// Remote "origin"
-	runCmd(t, repoDir, "git", "remote", "add", "origin", "https://example.com/repo.git")
-
-	// Create fake remote refs
-	originRefsDir := filepath.Join(repoDir, ".git", "refs", "remotes", "origin")
-	if err := os.MkdirAll(originRefsDir, 0755); err != nil {
-		t.Fatalf("Failed to create origin refs dir: %v", err)
-	}
-
-	// Get current HEAD commit
-	headCommit := getHeadCommit(t, repoDir)
-
-	// Create remote branches
-	if err := os.WriteFile(filepath.Join(originRefsDir, "remote-only"), []byte(headCommit), 0644); err != nil {
-		t.Fatalf("Failed to create origin/remote-only: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(originRefsDir, "shared-branch"), []byte(headCommit), 0644); err != nil {
-		t.Fatalf("Failed to create origin/shared-branch: %v", err)
-	}
-
-	// Remote "upstream"
-	runCmd(t, repoDir, "git", "remote", "add", "upstream", "https://example.com/upstream.git")
-	upstreamRefsDir := filepath.Join(repoDir, ".git", "refs", "remotes", "upstream")
-	if err := os.MkdirAll(upstreamRefsDir, 0755); err != nil {
-		t.Fatalf("Failed to create upstream refs dir: %v", err)
-	}
-	if err := os.WriteFile(filepath.Join(upstreamRefsDir, "shared-branch"), []byte(headCommit), 0644); err != nil {
-		t.Fatalf("Failed to create upstream/shared-branch: %v", err)
-	}
+	runCmd(t, repoDir, "jj", "bookmark", "create", "local-feature", "-r", "@")
 
 	// Create repository instance
 	repo, err := NewRepository(repoDir)
@@ -322,20 +250,7 @@ func TestBranchResolution(t *testing.T) {
 			expectBranch: "local-feature",
 		},
 		{
-			name:         "Remote branch exists in single remote",
-			branch:       "remote-only",
-			expectError:  false,
-			expectRemote: true,
-			expectBranch: "origin/remote-only",
-		},
-		{
-			name:          "Branch exists in multiple remotes",
-			branch:        "shared-branch",
-			expectError:   true,
-			errorContains: "exists in multiple remotes",
-		},
-		{
-			name:          "Branch does not exist",
+			name:          "Bookmark does not exist",
 			branch:        "nonexistent",
 			expectError:   true,
 			errorContains: "not found in local or remote branches",
@@ -367,20 +282,10 @@ func TestBranchResolution(t *testing.T) {
 	}
 }
 
-func runCmd(t *testing.T, dir, _ string, args ...string) {
-	cmd := exec.Command("git", args...)
+func runCmd(t *testing.T, dir, command string, args ...string) {
+	cmd := exec.Command(command, args...)
 	cmd.Dir = dir
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("command failed: %s\nOutput: %s", err, output)
 	}
-}
-
-func getHeadCommit(t *testing.T, dir string) string {
-	cmd := exec.Command("git", "rev-parse", "HEAD")
-	cmd.Dir = dir
-	output, err := cmd.Output()
-	if err != nil {
-		t.Fatalf("Failed to get HEAD commit: %v", err)
-	}
-	return strings.TrimSpace(string(output))
 }

@@ -43,9 +43,9 @@ func TestHookCommand_GeneratesValidShellScripts(t *testing.T) {
 			name:  "bash generates valid hook",
 			shell: "bash",
 			contains: []string{
-				"wtp()",
+				"jtp()",
 				"if [[ \"$1\" == \"cd\" ]]",
-				"command wtp cd",
+				"command jtp cd",
 				"cd \"$target_dir\"",
 			},
 		},
@@ -53,9 +53,9 @@ func TestHookCommand_GeneratesValidShellScripts(t *testing.T) {
 			name:  "zsh generates valid hook",
 			shell: "zsh",
 			contains: []string{
-				"wtp()",
+				"jtp()",
 				"if [[ \"$1\" == \"cd\" ]]",
-				"command wtp cd",
+				"command jtp cd",
 				"cd \"$target_dir\"",
 			},
 		},
@@ -63,9 +63,9 @@ func TestHookCommand_GeneratesValidShellScripts(t *testing.T) {
 			name:  "fish generates valid hook",
 			shell: "fish",
 			contains: []string{
-				"function wtp",
+				"function jtp",
 				"if test \"$argv[1]\" = \"cd\"",
-				"command wtp cd",
+				"command jtp cd",
 				"cd \"$target_dir\"",
 			},
 		},
@@ -113,9 +113,9 @@ func TestFishHook_VariableScoping(t *testing.T) {
 		"target_dir must be declared outside if/else block for proper fish scoping")
 
 	// Inside if/else blocks, assignment should NOT use -l flag
-	assert.Contains(t, output, "set target_dir (command wtp cd 2>/dev/null)",
+	assert.Contains(t, output, "set target_dir (command jtp cd 2>/dev/null)",
 		"target_dir assignment in if block should not use -l flag")
-	assert.Contains(t, output, "set target_dir (command wtp cd $argv[2] 2>/dev/null)",
+	assert.Contains(t, output, "set target_dir (command jtp cd $argv[2] 2>/dev/null)",
 		"target_dir assignment in else block should not use -l flag")
 }
 
@@ -131,11 +131,11 @@ func TestHookScripts_HandleEdgeCases(t *testing.T) {
 			shell: "bash",
 			requiredLogic: []string{
 				"if [[ -z \"$2\" ]]",               // No-arg branch
-				"target_dir=$(command wtp cd",      // Uses `wtp cd` default behavior
-				"target_dir=$(command wtp cd \"$2", // Uses explicit worktree name when present
+				"target_dir=$(command jtp cd",      // Uses `jtp cd` default behavior
+				"target_dir=$(command jtp cd \"$2", // Uses explicit worktree name when present
 			},
 			notContains: []string{
-				"Usage: wtp cd <worktree>",
+				"Usage: jtp cd <worktree>",
 				"echo \"Usage:",
 			},
 		},
@@ -144,11 +144,11 @@ func TestHookScripts_HandleEdgeCases(t *testing.T) {
 			shell: "zsh",
 			requiredLogic: []string{
 				"if [[ -z \"$2\" ]]",               // No-arg branch
-				"target_dir=$(command wtp cd",      // Uses `wtp cd` default behavior
-				"target_dir=$(command wtp cd \"$2", // Uses explicit worktree name when present
+				"target_dir=$(command jtp cd",      // Uses `jtp cd` default behavior
+				"target_dir=$(command jtp cd \"$2", // Uses explicit worktree name when present
 			},
 			notContains: []string{
-				"Usage: wtp cd <worktree>",
+				"Usage: jtp cd <worktree>",
 				"echo \"Usage:",
 			},
 		},
@@ -157,12 +157,12 @@ func TestHookScripts_HandleEdgeCases(t *testing.T) {
 			shell: "fish",
 			requiredLogic: []string{
 				"if test -z \"$argv[2]\"",     // No-arg branch
-				"set target_dir (command wtp", // Uses `wtp cd` (no -l inside block)
-				"command wtp cd $argv[2]",     // Uses explicit worktree name when present
+				"set target_dir (command jtp", // Uses `jtp cd` (no -l inside block)
+				"command jtp cd $argv[2]",     // Uses explicit worktree name when present
 				"cd \"$target_dir\"",          // Handles spaces safely
 			},
 			notContains: []string{
-				"Usage: wtp cd <worktree>",
+				"Usage: jtp cd <worktree>",
 				"echo \"Usage:",
 			},
 		},
@@ -205,10 +205,10 @@ func TestHookScripts_AutoCdAfterAdd(t *testing.T) {
 				"elif [[ \"$1\" == \"add\" ]]",
 				"if [[ \"$arg\" == \"--help\" || \"$arg\" == \"-h\" ]]; then",
 				"if [[ ! -t 1 ]]; then",
-				"target_dir=$(command wtp \"$@\" --quiet)",
-				"local wtp_status=$?",
+				"target_dir=$(command jtp \"$@\" --quiet)",
+				"local jtp_status=$?",
 				"cd \"$target_dir\" || return $?",
-				"return $wtp_status",
+				"return $jtp_status",
 			},
 		},
 		{
@@ -218,10 +218,10 @@ func TestHookScripts_AutoCdAfterAdd(t *testing.T) {
 				"elif [[ \"$1\" == \"add\" ]]",
 				"if [[ \"$arg\" == \"--help\" || \"$arg\" == \"-h\" ]]; then",
 				"if [[ ! -t 1 ]]; then",
-				"target_dir=$(command wtp \"$@\" --quiet)",
-				"local wtp_status=$?",
+				"target_dir=$(command jtp \"$@\" --quiet)",
+				"local jtp_status=$?",
 				"cd \"$target_dir\" || return $?",
-				"return $wtp_status",
+				"return $jtp_status",
 			},
 		},
 		{
@@ -231,11 +231,11 @@ func TestHookScripts_AutoCdAfterAdd(t *testing.T) {
 				"else if test \"$argv[1]\" = \"add\"",
 				"if test \"$arg\" = \"--help\"; or test \"$arg\" = \"-h\"",
 				"if not isatty stdout",
-				"set -l target_dir (command wtp $argv --quiet)",
-				"set -l wtp_status $status",
+				"set -l target_dir (command jtp $argv --quiet)",
+				"set -l jtp_status $status",
 				"cd \"$target_dir\"",
 				"or return $status",
-				"return $wtp_status",
+				"return $jtp_status",
 			},
 		},
 	}

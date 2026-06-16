@@ -12,7 +12,6 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/satococoa/wtp/v2/internal/command"
 	"github.com/satococoa/wtp/v2/internal/config"
 	"github.com/satococoa/wtp/v2/internal/errors"
 	"github.com/satococoa/wtp/v2/internal/git"
@@ -26,13 +25,13 @@ func NewCdCommand() *cli.Command {
 		Description: "Output the absolute path to the specified worktree.\n" +
 			"If no worktree is specified, outputs the main worktree path (like cd goes to $HOME).\n\n" +
 			"Usage:\n" +
-			"  Direct:     cd \"$(wtp cd feature)\"\n" +
-			"  With hook:  wtp cd feature\n" +
-			"  Go home:    wtp cd\n\n" +
+			"  Direct:     cd \"$(jtp cd feature)\"\n" +
+			"  With hook:  jtp cd feature\n" +
+			"  Go home:    jtp cd\n\n" +
 			"To enable the hook for easier navigation:\n" +
-			"  Bash: eval \"$(wtp hook bash)\"\n" +
-			"  Zsh:  eval \"$(wtp hook zsh)\"\n" +
-			"  Fish: wtp hook fish | source",
+			"  Bash: eval \"$(jtp hook bash)\"\n" +
+			"  Zsh:  eval \"$(jtp hook zsh)\"\n" +
+			"  Fish: jtp hook fish | source",
 		ArgsUsage:     "[worktree-name]",
 		Action:        cdToWorktree,
 		ShellComplete: completeWorktreesForCd,
@@ -55,7 +54,7 @@ func cdToWorktree(_ context.Context, cmd *cli.Command) error {
 	}
 
 	// Initialize repository to check if we're in a git repo
-	_, err = git.NewRepository(cwd)
+	repo, err := git.NewRepository(cwd)
 	if err != nil {
 		return errors.NotInGitRepository()
 	}
@@ -66,45 +65,23 @@ func cdToWorktree(_ context.Context, cmd *cli.Command) error {
 		w = os.Stdout
 	}
 
-	// Use CommandExecutor-based implementation
-	executor := command.NewRealExecutor()
-	return cdCommandWithCommandExecutor(cmd, w, executor, cwd, worktreeName)
-}
-
-func cdCommandWithCommandExecutor(
-	_ *cli.Command,
-	w io.Writer,
-	executor command.Executor,
-	_ string,
-	worktreeName string,
-) error {
-	// Get worktrees using CommandExecutor
-	listCmd := command.GitWorktreeList()
-	result, err := executor.Execute([]command.Command{listCmd})
+	worktrees, err := repo.GetWorktrees()
 	if err != nil {
-		return fmt.Errorf("failed to get worktrees: %w", err)
+		return fmt.Errorf("failed to get workspaces: %w", err)
 	}
 
-	// Parse worktrees from command output
-	worktrees := parseWorktreesFromOutput(result.Results[0].Output)
+	return cdCommandWithWorktrees(w, worktrees, worktreeName)
+}
 
-	// Find the main worktree path
+func cdCommandWithWorktrees(w io.Writer, worktrees []git.Worktree, worktreeName string) error {
 	mainWorktreePath := findMainWorktreePath(worktrees)
-
-	// Find the worktree using multiple resolution strategies
 	targetPath := resolveWorktreePathByName(worktreeName, worktrees, mainWorktreePath)
-
 	if targetPath == "" {
 		availableWorktrees := availableManagedWorktreeNames(worktrees, mainWorktreePath)
 		return errors.WorktreeNotFound(worktreeName, availableWorktrees)
 	}
-
-	// Output the path for the shell function to cd to
-	if _, err := fmt.Fprintln(w, targetPath); err != nil {
-		return err
-	}
-
-	return nil
+	_, err := fmt.Fprintln(w, targetPath)
+	return err
 }
 
 // getWorktreeNameFromPathCd calculates the worktree name from its path (cd version)

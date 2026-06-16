@@ -1,7 +1,7 @@
 version: '3'
 
 vars:
-  BINARY_NAME: wtp
+  BINARY_NAME: jtp
   VERSION:
     sh: git describe --tags --always --dirty
   COMMIT:
@@ -27,7 +27,7 @@ tasks:
     desc: Install the binary to GOPATH/bin
     cmds:
       - echo "Installing {{.BINARY_NAME}}..."
-      - go install -ldflags="{{.LDFLAGS}}" ./cmd/wtp
+      - go build -ldflags="{{.LDFLAGS}}" -o "$(go env GOPATH)/bin/{{.BINARY_NAME}}" ./cmd/wtp
 
   test:
     desc: Run tests

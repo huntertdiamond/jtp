@@ -144,13 +144,10 @@ func TestRemoveCommand_CommandConstruction(t *testing.T) {
 			mockWorktreeList: "worktree /path/to/main\nHEAD abc123\nbranch refs/heads/main\n\n" +
 				"worktree /path/to/worktrees/feature-branch\nHEAD def456\nbranch refs/heads/feature-branch\n\n",
 			expectedCommands: []command.Command{
+				command.GitWorktreeList(),
 				{
-					Name: "git",
-					Args: []string{"worktree", "list", "--porcelain"},
-				},
-				{
-					Name: "git",
-					Args: []string{"worktree", "remove", "/path/to/worktrees/feature-branch"},
+					Name: "jj",
+					Args: []string{"workspace", "forget", "/path/to/worktrees/feature-branch"},
 				},
 			},
 		},
@@ -161,13 +158,10 @@ func TestRemoveCommand_CommandConstruction(t *testing.T) {
 			mockWorktreeList: "worktree /path/to/main\nHEAD abc123\nbranch refs/heads/main\n\n" +
 				"worktree /path/to/worktrees/feature-branch\nHEAD def456\nbranch refs/heads/feature-branch\n\n",
 			expectedCommands: []command.Command{
+				command.GitWorktreeList(),
 				{
-					Name: "git",
-					Args: []string{"worktree", "list", "--porcelain"},
-				},
-				{
-					Name: "git",
-					Args: []string{"worktree", "remove", "--force", "/path/to/worktrees/feature-branch"},
+					Name: "jj",
+					Args: []string{"workspace", "forget", "/path/to/worktrees/feature-branch"},
 				},
 			},
 		},
@@ -178,17 +172,14 @@ func TestRemoveCommand_CommandConstruction(t *testing.T) {
 			mockWorktreeList: "worktree /path/to/main\nHEAD abc123\nbranch refs/heads/main\n\n" +
 				"worktree /path/to/worktrees/feature-branch\nHEAD def456\nbranch refs/heads/feature-branch\n\n",
 			expectedCommands: []command.Command{
+				command.GitWorktreeList(),
 				{
-					Name: "git",
-					Args: []string{"worktree", "list", "--porcelain"},
+					Name: "jj",
+					Args: []string{"workspace", "forget", "/path/to/worktrees/feature-branch"},
 				},
 				{
-					Name: "git",
-					Args: []string{"worktree", "remove", "/path/to/worktrees/feature-branch"},
-				},
-				{
-					Name: "git",
-					Args: []string{"branch", "-d", "feature-branch"},
+					Name: "jj",
+					Args: []string{"bookmark", "delete", "feature-branch"},
 				},
 			},
 		},
@@ -432,10 +423,7 @@ func TestRemoveCommand_FailsWhenRemovingCurrentWorktree(t *testing.T) {
 			assert.Error(t, err)
 			assert.Contains(t, err.Error(), "cannot remove worktree 'feature/foo'")
 			assert.Equal(t, []command.Command{
-				{
-					Name: "git",
-					Args: []string{"worktree", "list", "--porcelain"},
-				},
+				command.GitWorktreeList(),
 			}, mockExec.executedCommands)
 		})
 	}
@@ -729,7 +717,7 @@ func TestRemoveCommand_PathWithSpaces(t *testing.T) {
 	assert.NoError(t, err)
 	// Verify the correct path was passed to git command
 	assert.Len(t, mockExec.executedCommands, 2)
-	assert.Equal(t, []string{"worktree", "remove", worktreePath}, mockExec.executedCommands[1].Args)
+	assert.Equal(t, []string{"workspace", "forget", worktreePath}, mockExec.executedCommands[1].Args)
 }
 
 func TestRemoveCommand_MultipleMatchingWorktrees(t *testing.T) {
@@ -785,7 +773,7 @@ branch refs/heads/test-feature
 			assert.NoError(t, err)
 			// Verify the correct worktree was targeted
 			assert.Len(t, mockExec.executedCommands, 2)
-			assert.Equal(t, []string{"worktree", "remove", tt.expectedPath}, mockExec.executedCommands[1].Args)
+			assert.Equal(t, []string{"workspace", "forget", tt.expectedPath}, mockExec.executedCommands[1].Args)
 		})
 	}
 }

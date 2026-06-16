@@ -9,7 +9,12 @@ import (
 )
 
 func findMainWorktreePath(worktrees []git.Worktree) string {
-	// The first worktree is always the main worktree (git worktree list behavior)
+	for _, wt := range worktrees {
+		if wt.IsMain {
+			return wt.Path
+		}
+	}
+
 	if len(worktrees) > 0 {
 		return worktrees[0].Path
 	}

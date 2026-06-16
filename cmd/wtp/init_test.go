@@ -59,12 +59,12 @@ func TestInitCommand_ConfigAlreadyExists(t *testing.T) {
 	err := os.Chdir(tempDir)
 	assert.NoError(t, err)
 
-	// Initialize as a git repository
-	gitCmd := exec.Command("git", "init")
-	gitCmd.Dir = tempDir
-	err = gitCmd.Run()
+	// Initialize as a jj repository
+	jjCmd := exec.Command("jj", "git", "init")
+	jjCmd.Dir = tempDir
+	err = jjCmd.Run()
 	if err != nil {
-		t.Skip("git not available")
+		t.Skip("jj not available")
 	}
 
 	// Create existing config file
@@ -94,12 +94,12 @@ func TestInitCommand_Success(t *testing.T) {
 	err := os.Chdir(tempDir)
 	assert.NoError(t, err)
 
-	// Initialize as a git repository
-	gitCmd := exec.Command("git", "init")
-	gitCmd.Dir = tempDir
-	err = gitCmd.Run()
+	// Initialize as a jj repository
+	jjCmd := exec.Command("jj", "git", "init")
+	jjCmd.Dir = tempDir
+	err = jjCmd.Run()
 	if err != nil {
-		t.Skip("git not available")
+		t.Skip("jj not available")
 	}
 
 	app := &cli.Command{
@@ -147,11 +147,11 @@ func TestInitCommand_Success(t *testing.T) {
 	assert.Contains(t, contentStr, "from: .env")
 	assert.Contains(t, contentStr, "to: .env")
 	assert.Contains(t, contentStr, "type: command")
-	assert.Contains(t, contentStr, "command: wtp")
-	assert.Contains(t, contentStr, `command: wtp list`)
+	assert.Contains(t, contentStr, "command: jtp")
+	assert.Contains(t, contentStr, `command: jtp list`)
 
 	// Check for comments
-	assert.Contains(t, contentStr, "# Worktree Plus Configuration")
+	assert.Contains(t, contentStr, "# JTP Configuration")
 	assert.Contains(t, contentStr, "# Default settings for worktrees")
 	assert.Contains(t, contentStr, "# Hooks that run after creating a worktree")
 }
@@ -189,12 +189,12 @@ func TestInitCommand_WriteFileError(t *testing.T) {
 	}
 	defer func() { writeFile = originalWriteFile }()
 
-	// Initialize as a git repository
-	gitCmd := exec.Command("git", "init")
-	gitCmd.Dir = tempDir
-	err = gitCmd.Run()
+	// Initialize as a jj repository
+	jjCmd := exec.Command("jj", "git", "init")
+	jjCmd.Dir = tempDir
+	err = jjCmd.Run()
 	if err != nil {
-		t.Skip("git not available")
+		t.Skip("jj not available")
 	}
 
 	cmd := NewInitCommand()

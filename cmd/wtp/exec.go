@@ -19,7 +19,7 @@ func NewExecCommand() *cli.Command {
 	return &cli.Command{
 		Name:          "exec",
 		Usage:         "Execute a command in a specified worktree",
-		UsageText:     "wtp exec <worktree> -- <command> [args...]",
+		UsageText:     "jtp exec <worktree> -- <command> [args...]",
 		ArgsUsage:     "<worktree> -- <command> [args...]",
 		ShellComplete: completeWorktreesForExec,
 		Action:        execCommand,
@@ -32,7 +32,7 @@ func execCommand(_ context.Context, cmd *cli.Command) error {
 		return errors.DirectoryAccessFailed("access current", ".", err)
 	}
 
-	_, err = git.NewRepository(cwd)
+	repo, err := git.NewRepository(cwd)
 	if err != nil {
 		return errors.NotInGitRepository()
 	}
@@ -43,7 +43,28 @@ func execCommand(_ context.Context, cmd *cli.Command) error {
 	}
 
 	executor := command.NewRealExecutor()
-	return execCommandWithCommandExecutor(cmd, w, executor)
+	worktrees, err := repo.GetWorktrees()
+	if err != nil {
+		return errors.GitCommandFailed("jj workspace list", err.Error())
+	}
+	return execCommandWithWorktrees(cmd, w, executor, worktrees)
+}
+
+func execCommandWithWorktrees(
+	cmd *cli.Command, w io.Writer, executor command.Executor, worktrees []git.Worktree,
+) error {
+	worktreeName, commandName, commandArgs, err := parseExecInput(cmd.Args().Slice())
+	if err != nil {
+		return err
+	}
+
+	mainWorktreePath := findMainWorktreePath(worktrees)
+	targetPath := resolveWorktreePathByName(worktreeName, worktrees, mainWorktreePath)
+	if targetPath == "" {
+		return errors.WorktreeNotFound(worktreeName, availableManagedWorktreeNames(worktrees, mainWorktreePath))
+	}
+
+	return runExecInWorktree(w, executor, worktreeName, commandName, commandArgs, targetPath)
 }
 
 func execCommandWithCommandExecutor(cmd *cli.Command, w io.Writer, executor command.Executor) error {
@@ -77,6 +98,17 @@ func execCommandWithCommandExecutor(cmd *cli.Command, w io.Writer, executor comm
 		return errors.WorktreeNotFound(worktreeName, availableManagedWorktreeNames(worktrees, mainWorktreePath))
 	}
 
+	return runExecInWorktree(w, executor, worktreeName, commandName, commandArgs, targetPath)
+}
+
+func runExecInWorktree(
+	w io.Writer,
+	executor command.Executor,
+	worktreeName string,
+	commandName string,
+	commandArgs []string,
+	targetPath string,
+) error {
 	execResult, err := executor.Execute([]command.Command{{
 		Name:        commandName,
 		Args:        commandArgs,
@@ -111,7 +143,7 @@ func parseExecInput(args []string) (worktreeName, commandName string, commandArg
 		firstCmdIndex   = 2
 		minArgsWithDash = 3
 	)
-	const usage = "Usage: wtp exec <worktree> -- <command> [args...]"
+	const usage = "Usage: jtp exec <worktree> -- <command> [args...]"
 	if len(args) == 0 {
 		return "", "", nil, fmt.Errorf("worktree name is required\n\n%s", usage)
 	}

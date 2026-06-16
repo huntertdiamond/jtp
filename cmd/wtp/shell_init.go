@@ -23,8 +23,8 @@ var runCompletionCommand = func(shell string) ([]byte, error) {
 
 	exe, err := os.Executable()
 	if err != nil {
-		// Fallback to "wtp" if we can't find the executable
-		exe = "wtp"
+		// Fallback to "jtp" if we can't find the executable
+		exe = "jtp"
 	}
 
 	// #nosec G204 -- exe comes from the running binary and shell is validated above
@@ -38,12 +38,12 @@ func NewShellInitCommand() *cli.Command {
 		Name:  "shell-init",
 		Usage: "Initialize shell with completion and cd functionality",
 		Description: "Generate shell initialization script that sets up tab completion and shell navigation hooks. " +
-			"This is a convenience command that combines 'wtp completion' and 'wtp hook'.\n\n" +
-			"With shell integration enabled, both 'wtp cd' and successful 'wtp add' can switch directories automatically.\n\n" +
+			"This is a convenience command that combines 'jtp completion' and 'jtp hook'.\n\n" +
+			"With shell integration enabled, both 'jtp cd' and successful 'jtp add' can switch directories automatically.\n\n" +
 			"To enable full shell integration, add the following to your shell config:\n" +
-			"  Bash (~/.bashrc):         eval \"$(wtp shell-init bash)\"\n" +
-			"  Zsh (~/.zshrc):           eval \"$(wtp shell-init zsh)\"\n" +
-			"  Fish (~/.config/fish/config.fish): wtp shell-init fish | source",
+			"  Bash (~/.bashrc):         eval \"$(jtp shell-init bash)\"\n" +
+			"  Zsh (~/.zshrc):           eval \"$(jtp shell-init zsh)\"\n" +
+			"  Fish (~/.config/fish/config.fish): jtp shell-init fish | source",
 		Commands: []*cli.Command{
 			{
 				Name:        "bash",
@@ -124,7 +124,7 @@ func shellInitFish(_ context.Context, cmd *cli.Command) error {
 	return printFishHook(w)
 }
 
-// outputCompletion executes wtp completion command and writes output to w
+// outputCompletion executes jtp completion command and writes output to w
 
 func outputCompletion(w io.Writer, shell string) error {
 	output, err := runCompletionCommand(shell)

@@ -4,13 +4,13 @@
 
 # Macs have bash3 for which the bash-completion package doesn't include
 # _init_completion. This is a minimal version of that function.
-__wtp_init_completion() {
+__jtp_init_completion() {
   COMPREPLY=()
   _get_comp_words_by_ref "$@" cur prev words cword
 }
 
 
-_wtp_sanitize_completion_list() {
+_jtp_sanitize_completion_list() {
 	local line suffix result=()
 	while IFS= read -r line; do
 		if [[ "$line" == *:* ]]; then
@@ -25,7 +25,7 @@ _wtp_sanitize_completion_list() {
 	printf "%s\n" "${result[@]}"
 }
 
-__wtp_bash_autocomplete() {
+__jtp_bash_autocomplete() {
   if [[ "${COMP_WORDS[0]}" != "source" ]]; then
     local cur opts base words
     COMPREPLY=()
@@ -33,7 +33,7 @@ __wtp_bash_autocomplete() {
     if declare -F _init_completion >/dev/null 2>&1; then
       _init_completion -n "=:" || return
     else
-      __wtp_init_completion -n "=:" || return
+      __jtp_init_completion -n "=:" || return
     fi
     words=("${words[@]:0:$cword}")
     if [[ "$cur" == "-"* ]]; then
@@ -41,12 +41,12 @@ __wtp_bash_autocomplete() {
     else
       requestComp="${words[*]} --generate-shell-completion"
     fi
-    opts=$(WTP_SHELL_COMPLETION=1 eval "${requestComp}" 2>/dev/null)
-    opts=$(_wtp_sanitize_completion_list <<<"${opts}")
+    opts=$(JTP_SHELL_COMPLETION=1 eval "${requestComp}" 2>/dev/null)
+    opts=$(_jtp_sanitize_completion_list <<<"${opts}")
     COMPREPLY=($(compgen -W "${opts}" -- ${cur}))
     return 0
   fi
 }
 
-complete -o bashdefault -o default -o nospace -F __wtp_bash_autocomplete wtp
+complete -o bashdefault -o default -o nospace -F __jtp_bash_autocomplete jtp
 

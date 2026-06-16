@@ -14,7 +14,7 @@ func TestBasicCommands(t *testing.T) {
 	t.Run("Version", func(t *testing.T) {
 		output, err := env.RunWTP("--version")
 		framework.AssertNoError(t, err)
-		framework.AssertOutputContains(t, output, "wtp version")
+		framework.AssertOutputContains(t, output, "jtp version")
 	})
 
 	t.Run("Help", func(t *testing.T) {
@@ -87,13 +87,13 @@ func TestVersionCommand(t *testing.T) {
 	t.Run("ShortFlag", func(t *testing.T) {
 		output, err := env.RunWTP("-v")
 		framework.AssertNoError(t, err)
-		framework.AssertOutputContains(t, output, "wtp version")
+		framework.AssertOutputContains(t, output, "jtp version")
 	})
 
 	t.Run("LongFlag", func(t *testing.T) {
 		output, err := env.RunWTP("--version")
 		framework.AssertNoError(t, err)
-		framework.AssertOutputContains(t, output, "wtp version")
+		framework.AssertOutputContains(t, output, "jtp version")
 	})
 }
 

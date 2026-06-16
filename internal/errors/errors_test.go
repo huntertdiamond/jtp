@@ -69,14 +69,14 @@ func TestGitCommandFailed(t *testing.T) {
 }
 
 func TestBranchNameRequired(t *testing.T) {
-	commandExample := "wtp add <branch-name>"
+	commandExample := "jtp add <branch-name>"
 	err := BranchNameRequired(commandExample)
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "branch name is required")
 	assert.Contains(t, err.Error(), commandExample)
-	assert.Contains(t, err.Error(), "wtp add feature/auth")
-	assert.Contains(t, err.Error(), "wtp add -b new-feature --quiet")
+	assert.Contains(t, err.Error(), "jtp add feature/auth")
+	assert.Contains(t, err.Error(), "jtp add -b new-feature --quiet")
 	assert.Contains(t, err.Error(), "Examples:")
 }
 
@@ -85,9 +85,9 @@ func TestWorktreeNameRequiredForRemove(t *testing.T) {
 
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "worktree name is required")
-	assert.Contains(t, err.Error(), "wtp remove")
-	assert.Contains(t, err.Error(), "wtp remove --with-branch")
-	assert.Contains(t, err.Error(), "wtp list")
+	assert.Contains(t, err.Error(), "jtp remove")
+	assert.Contains(t, err.Error(), "jtp remove --with-branch")
+	assert.Contains(t, err.Error(), "jtp list")
 }
 
 func TestInvalidBranchName(t *testing.T) {
@@ -117,7 +117,7 @@ func TestWorktreeNotFound(t *testing.T) {
 				"main",
 				"develop",
 				"feature/auth",
-				"wtp list",
+				"jtp list",
 			},
 		},
 		{
@@ -127,7 +127,7 @@ func TestWorktreeNotFound(t *testing.T) {
 			expected: []string{
 				"worktree 'missing' not found",
 				"No worktrees found",
-				"wtp list",
+				"jtp list",
 			},
 		},
 	}
@@ -210,7 +210,7 @@ func TestCannotRemoveCurrentWorktree(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "cannot remove worktree 'feature/foo'")
 	assert.Contains(t, err.Error(), "Current location: /repo/.worktrees/feature/foo")
-	assert.Contains(t, err.Error(), "wtp cd @")
+	assert.Contains(t, err.Error(), "jtp cd @")
 }
 
 func TestBranchRemovalFailed(t *testing.T) {
@@ -272,7 +272,7 @@ func TestConfigLoadFailed(t *testing.T) {
 			expected: []string{
 				"failed to load configuration from '.wtp.yml'",
 				"no such file or directory",
-				"wtp init",
+				"jtp init",
 			},
 		},
 		{
@@ -308,8 +308,8 @@ func TestConfigAlreadyExists(t *testing.T) {
 	assert.Contains(t, err.Error(), "configuration file already exists")
 	assert.Contains(t, err.Error(), path)
 	assert.Contains(t, err.Error(), "Options:")
-	assert.Contains(t, err.Error(), "Delete it and run 'wtp init' again")
-	assert.NotContains(t, err.Error(), "wtp init --force")
+	assert.Contains(t, err.Error(), "Delete it and run 'jtp init' again")
+	assert.NotContains(t, err.Error(), "jtp init --force")
 }
 
 func TestDirectoryAccessFailed(t *testing.T) {
@@ -364,7 +364,7 @@ func TestShellIntegrationRequired(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "shell integration")
 	assert.Contains(t, err.Error(), "eval")
-	assert.Contains(t, err.Error(), "wtp shell-init")
+	assert.Contains(t, err.Error(), "jtp shell-init")
 	assert.Contains(t, err.Error(), "Setup:")
 }
 
@@ -403,7 +403,7 @@ func TestMultipleBranchesFound(t *testing.T) {
 	assert.Contains(t, err.Error(), "Create a local tracking branch for the remote you want without checking it out")
 	assert.Contains(t, err.Error(), "git branch --track feature origin/feature")
 	assert.Contains(t, err.Error(), "git branch --track feature upstream/feature")
-	assert.Contains(t, err.Error(), "wtp add feature")
+	assert.Contains(t, err.Error(), "jtp add feature")
 }
 
 func TestHookExecutionFailed(t *testing.T) {
@@ -434,7 +434,7 @@ func TestErrorMessages_HelpfulContent(t *testing.T) {
 		{
 			name:     "WorktreeNameRequiredForRemove contains examples",
 			errorFn:  WorktreeNameRequiredForRemove,
-			keywords: []string{"wtp remove", "wtp list"},
+			keywords: []string{"jtp remove", "jtp list"},
 		},
 		{
 			name:     "ShellIntegrationRequired contains setup",

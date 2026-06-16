@@ -46,7 +46,6 @@ var (
 	listNewRepository = func(path string) (GitRepository, error) {
 		return git.NewRepository(path)
 	}
-	listNewExecutor  = command.NewRealExecutor // Add this for mocking
 	getTerminalWidth = func() int {
 		width, _, err := term.GetSize(int(os.Stdout.Fd()))
 		if err != nil || width <= 0 {
@@ -98,11 +97,13 @@ func listCommand(_ context.Context, cmd *cli.Command) error {
 		return errors.NotInGitRepository()
 	}
 
-	// Get main worktree path
-	mainRepoPath, err := repo.(*git.Repository).GetMainWorktreePath()
+	worktrees, err := repo.GetWorktrees()
 	if err != nil {
-		return errors.GitCommandFailed("get main worktree path", err.Error())
+		return errors.GitCommandFailed("jj workspace list", err.Error())
 	}
+
+	// Get main worktree path
+	mainRepoPath := findMainWorktreePath(worktrees)
 
 	// Get the writer from cli.Command
 	w := cmd.Root().Writer
@@ -119,9 +120,40 @@ func listCommand(_ context.Context, cmd *cli.Command) error {
 	// Get quiet flag
 	quiet := cmd.Bool("quiet")
 
-	// Use CommandExecutor-based implementation
-	executor := listNewExecutor()
-	return listCommandWithCommandExecutor(cmd, w, executor, cfg, mainRepoPath, quiet, opts)
+	return listCommandWithWorktrees(w, worktrees, cfg, mainRepoPath, quiet, opts)
+}
+
+func listCommandWithWorktrees(
+	w io.Writer, worktrees []git.Worktree, cfg *config.Config, mainRepoPath string, quiet bool,
+	opts listDisplayOptions,
+) error {
+	cwd, err := listGetwd()
+	if err != nil {
+		return errors.DirectoryAccessFailed("access current", ".", err)
+	}
+
+	if len(worktrees) == 0 {
+		if !quiet {
+			if _, err := fmt.Fprintln(w, "No worktrees found"); err != nil {
+				return err
+			}
+		}
+		return nil
+	}
+
+	if quiet {
+		return displayWorktreesQuiet(w, worktrees, cfg, mainRepoPath)
+	}
+
+	termWidth := getTerminalWidth()
+	if !opts.Compact {
+		if !opts.OutputIsTTY {
+			opts.Compact = true
+		} else if termWidth >= superWideThreshold {
+			opts.Compact = true
+		}
+	}
+	return displayWorktreesRelative(w, worktrees, cwd, cfg, mainRepoPath, termWidth, opts)
 }
 
 func listCommandWithCommandExecutor(

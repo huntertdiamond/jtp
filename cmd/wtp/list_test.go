@@ -112,12 +112,9 @@ func TestListCommand_CommandConstruction(t *testing.T) {
 		expectedCommands []command.Command
 	}{
 		{
-			name:       "list worktrees command",
-			mockOutput: "worktree /path/to/worktree\nHEAD abc123\nbranch refs/heads/main\n\n",
-			expectedCommands: []command.Command{{
-				Name: "git",
-				Args: []string{"worktree", "list", "--porcelain"},
-			}},
+			name:             "list worktrees command",
+			mockOutput:       "worktree /path/to/worktree\nHEAD abc123\nbranch refs/heads/main\n\n",
+			expectedCommands: []command.Command{command.GitWorktreeList()},
 		},
 	}
 

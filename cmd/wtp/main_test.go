@@ -16,8 +16,8 @@ func TestMain(t *testing.T) {
 	t.Run("app setup", func(t *testing.T) {
 		app := createApp()
 		assert.NotNil(t, app)
-		assert.Equal(t, "wtp", app.Name)
-		assert.Equal(t, "Enhanced Git worktree management", app.Usage)
+		assert.Equal(t, "jtp", app.Name)
+		assert.Equal(t, "Enhanced Jujutsu workspace management", app.Usage)
 		assert.NotEmpty(t, app.Description)
 		assert.True(t, app.EnableShellCompletion)
 
@@ -60,11 +60,11 @@ func TestAppRun_Version(t *testing.T) {
 	app.Writer = &buf
 
 	ctx := context.Background()
-	err := app.Run(ctx, []string{"wtp", "--version"})
+	err := app.Run(ctx, []string{"jtp", "--version"})
 
 	assert.NoError(t, err)
 	output := buf.String()
-	assert.Contains(t, output, "wtp version")
+	assert.Contains(t, output, "jtp version")
 }
 
 func TestAppRun_Help(t *testing.T) {
@@ -73,14 +73,14 @@ func TestAppRun_Help(t *testing.T) {
 	app.Writer = &buf
 
 	ctx := context.Background()
-	err := app.Run(ctx, []string{"wtp", "--help"})
+	err := app.Run(ctx, []string{"jtp", "--help"})
 
 	assert.NoError(t, err)
 	output := buf.String()
 
 	// Check help output contains expected information
-	assert.Contains(t, output, "wtp")
-	assert.Contains(t, output, "Enhanced Git worktree management")
+	assert.Contains(t, output, "jtp")
+	assert.Contains(t, output, "Enhanced Jujutsu workspace management")
 
 	// Check that all expected commands are present in the output
 	// Don't check for specific section headers as they may vary by CLI version
@@ -100,7 +100,7 @@ func TestAppRun_NoArgs(t *testing.T) {
 	app.Writer = &buf
 
 	ctx := context.Background()
-	err := app.Run(ctx, []string{"wtp"})
+	err := app.Run(ctx, []string{"jtp"})
 
 	// Should show help when no arguments
 	assert.NoError(t, err)
@@ -112,7 +112,7 @@ func TestMainExitCode(_ *testing.T) {
 	// Test that main exits with non-zero on error
 	if os.Getenv("BE_CRASHER") == "1" {
 		// This will cause an error
-		os.Args = []string{"wtp", "invalid-command"}
+		os.Args = []string{"jtp", "invalid-command"}
 		main()
 		return
 	}
@@ -124,9 +124,9 @@ func TestMainExitCode(_ *testing.T) {
 // Helper function to create the app for testing
 func createApp() *cli.Command {
 	return &cli.Command{
-		Name:  "wtp",
-		Usage: "Enhanced Git worktree management",
-		Description: "wtp (Worktree Plus) simplifies Git worktree creation with automatic branch tracking, " +
+		Name:  "jtp",
+		Usage: "Enhanced Jujutsu workspace management",
+		Description: "jtp simplifies Jujutsu workspace creation with automatic bookmark tracking, " +
 			"project-specific setup hooks, and convenient defaults.",
 		Version:                         version,
 		EnableShellCompletion:           true,

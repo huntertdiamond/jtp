@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/satococoa/wtp/v2/internal/testutil"
 )
 
 const (
@@ -26,7 +24,7 @@ type TestEnvironment struct {
 	cleanup   []func()
 }
 
-// NewTestEnvironment builds a new test environment and compiles the wtp binary when needed.
+// NewTestEnvironment builds a new test environment and compiles the jtp binary when needed.
 func NewTestEnvironment(t *testing.T) *TestEnvironment {
 	t.Helper()
 
@@ -57,7 +55,7 @@ func (e *TestEnvironment) buildWTP() {
 		cmd := exec.Command("go", "build", "-o", wtpBinary, "./cmd/wtp")
 		cmd.Dir = projectRoot
 		if output, err := cmd.CombinedOutput(); err != nil {
-			e.t.Fatalf("Failed to build wtp binary: %v\nOutput: %s", err, output)
+			e.t.Fatalf("Failed to build jtp binary: %v\nOutput: %s", err, output)
 		}
 	}
 
@@ -92,44 +90,27 @@ func (e *TestEnvironment) findProjectRoot() string {
 	}
 }
 
-// CreateTestRepo initializes a new git repository within the test environment.
+// CreateTestRepo initializes a new jj repository within the test environment.
 func (e *TestEnvironment) CreateTestRepo(name string) *TestRepo {
 	e.t.Helper()
 
 	repoDir := filepath.Join(e.tmpDir, name)
+	if err := os.MkdirAll(repoDir, dirPerm); err != nil {
+		e.t.Fatalf("Failed to create repository directory: %v", err)
+	}
 
-	e.run("git", "init", repoDir)
-	testutil.ConfigureTestRepo(e.t, repoDir, func(dir string, args ...string) {
-		e.runInDir(dir, "git", args...)
-	})
-
-	// Ensure the default branch is 'main' regardless of global git config
-	e.runInDir(repoDir, "git", "config", "init.defaultBranch", "main")
+	e.runInDir(repoDir, "jj", "git", "init")
 
 	readmePath := filepath.Join(repoDir, "README.md")
 	e.writeFile(readmePath, "# Test Repository")
-	e.runInDir(repoDir, "git", "add", ".")
-	e.runInDir(repoDir, "git", "commit", "-m", "Initial commit")
-
-	// Explicitly rename the branch to main if it's not already
-	e.runInDir(repoDir, "git", "branch", "-m", "main")
+	e.runInDir(repoDir, "jj", "describe", "-m", "Initial commit")
+	e.runInDir(repoDir, "jj", "bookmark", "create", "main", "-r", "@")
 
 	return &TestRepo{
-		env:  e,
-		path: repoDir,
+		env:     e,
+		path:    repoDir,
+		remotes: make(map[string]string),
 	}
-}
-
-func (e *TestEnvironment) run(command string, args ...string) string {
-	e.t.Helper()
-
-	cmd := exec.Command(command, args...)
-	output, err := cmd.CombinedOutput()
-	if err != nil {
-		e.t.Fatalf("Command failed: %s %s\nOutput: %s\nError: %v",
-			command, strings.Join(args, " "), output, err)
-	}
-	return string(output)
 }
 
 func (e *TestEnvironment) runInDir(dir, command string, args ...string) string {
@@ -158,7 +139,7 @@ func (e *TestEnvironment) writeFile(path, content string) {
 	}
 }
 
-// RunWTP executes the wtp binary with the provided arguments.
+// RunWTP executes the jtp binary with the provided arguments.
 func (e *TestEnvironment) RunWTP(args ...string) (string, error) {
 	// Validate args don't contain dangerous characters
 	for _, arg := range args {
@@ -178,7 +159,7 @@ func (e *TestEnvironment) TmpDir() string {
 	return e.tmpDir
 }
 
-// CreateNonRepoDir creates a directory that is not initialized as a git repository.
+// CreateNonRepoDir creates a directory that is not initialized as a jj repository.
 func (e *TestEnvironment) CreateNonRepoDir(name string) *TestRepo {
 	e.t.Helper()
 
@@ -188,8 +169,9 @@ func (e *TestEnvironment) CreateNonRepoDir(name string) *TestRepo {
 	}
 
 	return &TestRepo{
-		env:  e,
-		path: dir,
+		env:     e,
+		path:    dir,
+		remotes: make(map[string]string),
 	}
 }
 
@@ -216,13 +198,14 @@ func (e *TestEnvironment) Cleanup() {
 	}
 }
 
-// TestRepo wraps a git repository created inside the test environment.
+// TestRepo wraps a jj repository created inside the test environment.
 type TestRepo struct {
-	env  *TestEnvironment
-	path string
+	env     *TestEnvironment
+	path    string
+	remotes map[string]string
 }
 
-// RunWTP executes the wtp binary from the repository directory.
+// RunWTP executes the jtp binary from the repository directory.
 func (r *TestRepo) RunWTP(args ...string) (string, error) {
 	// Validate args don't contain dangerous characters
 	for _, arg := range args {
@@ -240,39 +223,62 @@ func (r *TestRepo) RunWTP(args ...string) (string, error) {
 	return string(output), err
 }
 
-// CreateBranch creates a new branch in the repository.
+// CreateBranch creates a new bookmark in the repository.
 func (r *TestRepo) CreateBranch(name string) {
-	r.env.runInDir(r.path, "git", "branch", name)
+	r.env.runInDir(r.path, "jj", "bookmark", "create", name, "-r", "@")
 }
 
-// CheckoutBranch switches to the specified branch.
+// CheckoutBranch starts a new working-copy commit from the specified bookmark.
 func (r *TestRepo) CheckoutBranch(name string) {
-	r.env.runInDir(r.path, "git", "checkout", name)
+	r.env.runInDir(r.path, "jj", "new", name)
 }
 
-// CommitFile writes a file and commits it with the provided message.
+// CommitFile writes a file and describes the current jj change with the provided message.
 func (r *TestRepo) CommitFile(filename, content, message string) {
 	r.env.writeFile(filepath.Join(r.path, filename), content)
-	r.env.runInDir(r.path, "git", "add", filename)
-	r.env.runInDir(r.path, "git", "commit", "-m", message)
+	r.env.runInDir(r.path, "jj", "describe", "-m", message)
 }
 
-// AddRemote adds a git remote to the repository.
+// AddRemote adds a local jj-backed Git remote to the repository.
 func (r *TestRepo) AddRemote(name, url string) {
-	r.env.runInDir(r.path, "git", "remote", "add", name, url)
-}
+	_ = url
 
-// CreateRemoteBranch pushes a branch to the specified remote.
-func (r *TestRepo) CreateRemoteBranch(remote, branch string) {
-	refPath := filepath.Join(r.path, ".git", "refs", "remotes", remote)
-	if err := os.MkdirAll(refPath, dirPerm); err != nil {
-		r.env.t.Fatalf("Failed to create remote ref directory: %v", err)
+	remotePath := filepath.Join(r.env.tmpDir, r.repoName()+"-"+name+"-remote")
+	if err := os.MkdirAll(remotePath, dirPerm); err != nil {
+		r.env.t.Fatalf("Failed to create remote repository directory: %v", err)
 	}
 
-	output := r.env.runInDir(r.path, "git", "rev-parse", "HEAD")
-	commit := strings.TrimSpace(output)
+	r.env.runInDir(remotePath, "jj", "git", "init")
+	r.env.writeFile(filepath.Join(remotePath, "README.md"), "# Remote Repository")
+	r.env.runInDir(remotePath, "jj", "describe", "-m", "Initial remote commit")
+	r.env.runInDir(remotePath, "jj", "bookmark", "create", "main", "-r", "@")
+	r.env.runInDir(remotePath, "jj", "git", "export")
+	r.env.runInDir(r.path, "jj", "git", "remote", "add", name, remotePath)
 
-	r.env.writeFile(filepath.Join(refPath, branch), commit)
+	r.remotes[name] = remotePath
+}
+
+func (r *TestRepo) repoName() string {
+	return filepath.Base(r.path)
+}
+
+// CreateRemoteBranch creates and fetches a bookmark in the named remote repository.
+func (r *TestRepo) CreateRemoteBranch(remote, branch string) {
+	remotePath, ok := r.remotes[remote]
+	if !ok {
+		r.env.t.Fatalf("Remote %s has not been added", remote)
+	}
+
+	output := r.env.runInDir(remotePath, "jj", "bookmark", "list", "--template", `name ++ "\n"`)
+	for _, line := range strings.Split(strings.TrimSpace(output), "\n") {
+		if strings.TrimSpace(line) == branch {
+			r.env.runInDir(r.path, "jj", "git", "fetch", "--remote", remote)
+			return
+		}
+	}
+	r.env.runInDir(remotePath, "jj", "bookmark", "create", branch, "-r", "@")
+	r.env.runInDir(remotePath, "jj", "git", "export")
+	r.env.runInDir(r.path, "jj", "git", "fetch", "--remote", remote)
 }
 
 // Path returns the filesystem path of the repository.
@@ -304,38 +310,40 @@ func (r *TestRepo) ReadFile(path string) string {
 	return string(content)
 }
 
-// GitStatus returns the output of `git status --short` for the repository.
+// GitStatus returns the output of `jj status` for the repository.
 func (r *TestRepo) GitStatus() string {
-	return r.env.runInDir(r.path, "git", "status", "--porcelain")
+	return r.env.runInDir(r.path, "jj", "status")
 }
 
-// CurrentBranch returns the currently checked-out branch name.
+// CurrentBranch returns the closest bookmark on the current working-copy commit.
 func (r *TestRepo) CurrentBranch() string {
-	output := r.env.runInDir(r.path, "git", "branch", "--show-current")
+	output := r.env.runInDir(r.path, "jj", "log", "--no-graph", "-r", "@", "-T", `bookmarks ++ "\n"`)
 	return strings.TrimSpace(output)
 }
 
-// GetCommitHash returns the HEAD commit hash.
+// GetCommitHash returns the current commit hash.
 func (r *TestRepo) GetCommitHash() string {
-	output := r.env.runInDir(r.path, "git", "rev-parse", "HEAD")
+	output := r.env.runInDir(r.path, "jj", "log", "--no-graph", "-r", "@", "-T", `commit_id ++ "\n"`)
 	return strings.TrimSpace(output)
 }
 
-// GetBranchCommitHash returns the commit hash for the specified branch.
+// GetBranchCommitHash returns the commit hash for the specified bookmark.
 func (r *TestRepo) GetBranchCommitHash(branch string) string {
-	output := r.env.runInDir(r.path, "git", "rev-parse", branch)
+	output := r.env.runInDir(r.path, "jj", "log", "--no-graph", "-r", branch, "-T", `commit_id ++ "\n"`)
 	return strings.TrimSpace(output)
 }
 
 // ListWorktrees returns the list of worktrees known to the repository.
 func (r *TestRepo) ListWorktrees() []string {
-	output := r.env.runInDir(r.path, "git", "worktree", "list", "--porcelain")
+	output := r.env.runInDir(r.path, "jj", "workspace", "list", "--template", `name ++ "\n"`)
 	lines := strings.Split(strings.TrimSpace(output), "\n")
 
 	var worktrees []string
 	for _, line := range lines {
-		if strings.HasPrefix(line, "worktree ") {
-			worktrees = append(worktrees, strings.TrimPrefix(line, "worktree "))
+		workspaceName := strings.TrimSpace(line)
+		if workspaceName != "" {
+			root := r.env.runInDir(r.path, "jj", "workspace", "root", "--name", workspaceName)
+			worktrees = append(worktrees, strings.TrimSpace(root))
 		}
 	}
 	return worktrees

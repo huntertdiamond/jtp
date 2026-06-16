@@ -42,9 +42,9 @@ func BranchNameRequired(commandExample string) error {
 Usage: %s
 
 Examples:
-  • wtp add feature/auth
-  • wtp add -b new-feature
-  • wtp add -b new-feature --quiet`, commandExample)
+  • jtp add feature/auth
+  • jtp add -b new-feature
+  • jtp add -b new-feature --quiet`, commandExample)
 	return errors.New(msg)
 }
 
@@ -52,14 +52,14 @@ Examples:
 func WorktreeNameRequiredForRemove() error {
 	msg := `worktree name is required
 
-Usage: wtp remove <worktree-name>
+Usage: jtp remove <worktree-name>
 
 Examples:
-  • wtp remove feature/auth
-  • wtp remove --with-branch feature/auth
-  • wtp remove --force feature/auth
+  • jtp remove feature/auth
+  • jtp remove --with-branch feature/auth
+  • jtp remove --force feature/auth
 
-Tip: Run 'wtp list' to see available worktrees`
+Tip: Run 'jtp list' to see available worktrees`
 	return errors.New(msg)
 }
 
@@ -89,7 +89,7 @@ func WorktreeNotFound(name string, availableWorktrees []string) error {
 		msg += "\n\nNo worktrees found."
 	}
 
-	msg += "\n\nTip: Run 'wtp list' to see all worktrees"
+	msg += "\n\nTip: Run 'jtp list' to see all worktrees"
 	return errors.New(msg)
 }
 
@@ -113,7 +113,7 @@ Cause: Branch or commit does not exist
 Solutions:
   • Check the branch name spelling
   • Use 'git branch -a' to see available branches
-  • Create the branch first with 'wtp add -b <branch-name>'`
+  • Create the branch first with 'jtp add -b <branch-name>'`
 	} else if strings.Contains(gitErrorStr, "destination path") && strings.Contains(gitErrorStr, "already exists") {
 		msg += `
 
@@ -137,7 +137,7 @@ func WorktreeRemovalFailed(path string, gitError error) error {
 	if strings.Contains(errorStr, "not a working tree") {
 		suggestions = append(suggestions,
 			"Check if the worktree path is correct",
-			"Run 'wtp list' to see available worktrees")
+			"Run 'jtp list' to see available worktrees")
 	} else if strings.Contains(errorStr, "contains modified or untracked files") {
 		suggestions = append(suggestions,
 			"Commit or stash changes in the worktree first",
@@ -167,7 +167,7 @@ func WorktreeRemovalFailed(path string, gitError error) error {
 func CannotRemoveCurrentWorktree(worktreeName, path string) error {
 	msg := fmt.Sprintf("cannot remove worktree '%s' while you are currently inside it", worktreeName)
 	msg += fmt.Sprintf("\n\nCurrent location: %s", path)
-	msg += "\n\nTip: Run 'wtp cd @' or 'wtp cd <another-worktree>' to switch before removing."
+	msg += "\n\nTip: Run 'jtp cd @' or 'jtp cd <another-worktree>' to switch before removing."
 	return errors.New(msg)
 }
 
@@ -209,12 +209,12 @@ Cause: YAML syntax error in configuration file
 Solutions:
   • Check YAML syntax and indentation
   • Validate YAML at https://yamllint.com/
-  • Run 'wtp init' to recreate the configuration`
+  • Run 'jtp init' to recreate the configuration`
 	} else if strings.Contains(parseErrorStr, "no such file") {
 		msg += `
 
 Cause: Configuration file does not exist
-Solution: Run 'wtp init' to create a configuration file`
+Solution: Run 'jtp init' to create a configuration file`
 	} else if strings.Contains(parseErrorStr, "permission denied") {
 		msg += `
 
@@ -232,7 +232,7 @@ func ConfigAlreadyExists(configPath string) error {
 
 Options:
   • Edit the existing file manually
-  • Delete it and run 'wtp init' again`, configPath)
+  • Delete it and run 'jtp init' again`, configPath)
 	return errors.New(msg)
 }
 
@@ -268,10 +268,10 @@ func ShellIntegrationRequired() error {
 	msg := `cd command requires shell integration
 
 Setup:
-  • Homebrew users: press TAB after typing 'wtp' once (automatic)
-  • Other installs: eval "$(wtp shell-init <shell>)" in your shell profile (~/.bashrc, ~/.zshrc, etc.)
+  • Homebrew users: press TAB after typing 'jtp' once (automatic)
+  • Other installs: eval "$(jtp shell-init <shell>)" in your shell profile (~/.bashrc, ~/.zshrc, etc.)
 
-Help: Run 'wtp shell-init --help' for more details`
+Help: Run 'jtp shell-init --help' for more details`
 	return errors.New(msg)
 }
 
@@ -286,7 +286,7 @@ func UnsupportedShell(shell string, supportedShells []string) error {
 		}
 	}
 
-	msg += "\n\nWorkaround: You can still use wtp without shell integration"
+	msg += "\n\nWorkaround: You can still use jtp without shell integration"
 	return errors.New(msg)
 }
 
@@ -297,7 +297,7 @@ func BranchNotFound(branchName string) error {
 Suggestions:
   • Check the branch name spelling
   • Run 'git branch -a' to see all branches
-  • Create a new branch with 'wtp add -b %s'
+  • Create a new branch with 'jtp add -b %s'
   • Fetch latest changes with 'git fetch'`, branchName, branchName)
 	return errors.New(msg)
 }
@@ -313,13 +313,13 @@ func MultipleBranchesFound(branchName string, remotes []string) error {
 	}
 
 	msg += "\n\nSolution: Create a local tracking branch for the remote you want " +
-		"without checking it out, then run wtp add again."
+		"without checking it out, then run jtp add again."
 	if len(sortedRemotes) > 0 {
 		msg += "\n\nExamples (choose one remote):"
 		for _, remote := range sortedRemotes {
 			msg += fmt.Sprintf("\n  • git branch --track %s %s/%s", branchName, remote, branchName)
 		}
-		msg += fmt.Sprintf("\n  • wtp add %s", branchName)
+		msg += fmt.Sprintf("\n  • jtp add %s", branchName)
 	}
 
 	return errors.New(msg)

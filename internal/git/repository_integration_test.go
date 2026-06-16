@@ -66,17 +66,12 @@ func TestGetWorktrees_WithWorktrees(t *testing.T) {
 	err := os.Chdir(tempDir)
 	assert.NoError(t, err)
 
-	// Create some test branches
-	runCmd(t, tempDir, "git", "checkout", "-b", "feature/test")
-	runCmd(t, tempDir, "git", "checkout", "main")
-
-	// Create worktrees
 	worktreesDir := filepath.Join(filepath.Dir(tempDir), "worktrees")
 	err = os.MkdirAll(worktreesDir, 0755)
 	assert.NoError(t, err)
 
 	worktree1Path := filepath.Join(worktreesDir, "feature-test")
-	runCmd(t, tempDir, "git", "worktree", "add", worktree1Path, "feature/test")
+	runCmd(t, tempDir, "jj", "workspace", "add", "--name", "feature/test", worktree1Path)
 
 	// Create repository instance
 	repo, err := NewRepository(tempDir)

@@ -1,6 +1,6 @@
-# wtp fish shell completion
+# jtp fish shell completion
 
-function __fish_wtp_dynamic_complete --description 'wtp dynamic completion helper'
+function __fish_jtp_dynamic_complete --description 'jtp dynamic completion helper'
 	set -l tokens (commandline -opc)
 	set -l args
 	set -l token_count (count $tokens)
@@ -18,11 +18,11 @@ function __fish_wtp_dynamic_complete --description 'wtp dynamic completion helpe
 
 	set args $args --generate-shell-completion
 
-	if not command -sq wtp
+	if not command -sq jtp
 		return
 	end
 
-	set -l raw (WTP_SHELL_COMPLETION=1 command wtp $args)
+	set -l raw (JTP_SHELL_COMPLETION=1 command jtp $args)
 	for line in $raw
 		if test -z "$line"
 			continue
@@ -41,4 +41,4 @@ function __fish_wtp_dynamic_complete --description 'wtp dynamic completion helpe
 	end
 end
 
-complete -c wtp -f -a '(__fish_wtp_dynamic_complete)'
+complete -c jtp -f -a '(__fish_jtp_dynamic_complete)'

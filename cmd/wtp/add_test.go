@@ -96,7 +96,7 @@ func TestBranchAlreadyExistsError(t *testing.T) {
 
 		// Then: should contain branch name, guidance, and original error
 		assert.Contains(t, message, "branch 'feature/auth' already exists")
-		assert.Contains(t, message, "wtp add feature/auth")
+		assert.Contains(t, message, "jtp add feature/auth")
 		assert.Contains(t, message, "Choose a different branch name")
 		assert.Contains(t, message, "Delete the existing branch")
 		assert.Contains(t, message, "A branch named 'feature/auth' already exists.")
@@ -306,8 +306,11 @@ func TestAddCommand_CommandConstruction(t *testing.T) {
 			},
 			args: []string{"feature/test"},
 			expectedCommands: []command.Command{{
-				Name: "git",
-				Args: []string{"worktree", "add", "-b", "feature/test", "/test/worktrees/feature/test", "feature/test"},
+				Name: "jj",
+				Args: []string{
+					"workspace", "add", "--name", "feature/test", "--revision", "feature/test",
+					"/test/worktrees/feature/test",
+				},
 			}},
 			expectError: false,
 		},
@@ -318,8 +321,11 @@ func TestAddCommand_CommandConstruction(t *testing.T) {
 			},
 			args: []string{"main"},
 			expectedCommands: []command.Command{{
-				Name: "git",
-				Args: []string{"worktree", "add", "-b", "new-feature", "/test/worktrees/new-feature", "main"},
+				Name: "jj",
+				Args: []string{
+					"workspace", "add", "--name", "new-feature", "--revision", "main",
+					"/test/worktrees/new-feature",
+				},
 			}},
 			expectError: false,
 		},
@@ -343,7 +349,7 @@ func TestAddCommand_CommandConstruction(t *testing.T) {
 				assert.Error(t, err)
 			} else {
 				assert.NoError(t, err)
-				// Verify that the correct git command was constructed
+				// Verify that the correct jj command was constructed
 				assert.Equal(t, tt.expectedCommands, mockExec.executedCommands)
 			}
 		})
@@ -580,7 +586,9 @@ func TestAddCommand_InternationalCharacters(t *testing.T) {
 
 			assert.NoError(t, err)
 			assert.Len(t, mockExec.executedCommands, 1)
-			assert.Equal(t, []string{"worktree", "add", "-b", tt.branchName, tt.expectedPath, tt.branchName},
+			assert.Equal(t, []string{
+				"workspace", "add", "--name", tt.branchName, "--revision", tt.branchName, tt.expectedPath,
+			},
 				mockExec.executedCommands[0].Args)
 		})
 	}
@@ -599,7 +607,7 @@ func createTestCLICommand(t *testing.T, flags map[string]any, args []string) *cl
 // ===== Integration Tests =====
 
 func TestAddCommand_SimplifiedInterface(t *testing.T) {
-	t.Run("should support wtp add <existing-branch>", func(t *testing.T) {
+	t.Run("should support jtp add <existing-branch>", func(t *testing.T) {
 		// Given: existing branch in repository
 		mockExec := &mockCommandExecutor{}
 		var buf bytes.Buffer
@@ -618,7 +626,7 @@ func TestAddCommand_SimplifiedInterface(t *testing.T) {
 		assert.Contains(t, err.Error(), "not in a git repository")
 	})
 
-	t.Run("should support wtp add -b <new-branch>", func(t *testing.T) {
+	t.Run("should support jtp add -b <new-branch>", func(t *testing.T) {
 		// Given: new branch name
 		mockExec := &mockCommandExecutor{}
 		var buf bytes.Buffer
@@ -633,12 +641,12 @@ func TestAddCommand_SimplifiedInterface(t *testing.T) {
 		// Then: should create new branch and worktree
 		assert.NoError(t, err)
 		assert.Len(t, mockExec.executedCommands, 1)
-		assert.Equal(t, []string{"worktree", "add", "-b", "feature/new", "/test/worktrees/feature/new"},
+		assert.Equal(t, []string{"workspace", "add", "--name", "feature/new", "/test/worktrees/feature/new"},
 			mockExec.executedCommands[0].Args)
 		assert.Contains(t, buf.String(), "✅ Worktree created successfully!")
 	})
 
-	t.Run("should support wtp add -b <new-branch> <commit>", func(t *testing.T) {
+	t.Run("should support jtp add -b <new-branch> <commit>", func(t *testing.T) {
 		// Given: new branch name and commit
 		mockExec := &mockCommandExecutor{}
 		var buf bytes.Buffer
@@ -653,7 +661,10 @@ func TestAddCommand_SimplifiedInterface(t *testing.T) {
 		// Then: should create new branch from commit and worktree
 		assert.NoError(t, err)
 		assert.Len(t, mockExec.executedCommands, 1)
-		assert.Equal(t, []string{"worktree", "add", "-b", "hotfix/urgent", "/test/worktrees/hotfix/urgent", "main"},
+		assert.Equal(t, []string{
+			"workspace", "add", "--name", "hotfix/urgent", "--revision", "main",
+			"/test/worktrees/hotfix/urgent",
+		},
 			mockExec.executedCommands[0].Args)
 		assert.Contains(t, buf.String(), "✅ Worktree created successfully!")
 	})
@@ -840,7 +851,7 @@ func TestDisplaySuccessMessage_Integration(t *testing.T) {
 		assert.Contains(t, output, "📁 Location: /repo/.worktrees/feature/awesome")
 		assert.Contains(t, output, "🌿 Branch: feature/awesome")
 		assert.Contains(t, output, "💡 To switch to the new worktree, run:")
-		assert.Contains(t, output, "wtp cd feature/awesome")
+		assert.Contains(t, output, "jtp cd feature/awesome")
 	})
 
 	t.Run("should display friendly success message without branch name", func(t *testing.T) {
@@ -860,7 +871,7 @@ func TestDisplaySuccessMessage_Integration(t *testing.T) {
 		assert.Contains(t, output, "📁 Location: /repo/.worktrees/some-path")
 		assert.NotContains(t, output, "🌿 Branch:")
 		assert.Contains(t, output, "💡 To switch to the new worktree, run:")
-		assert.Contains(t, output, "wtp cd some-path") // Should show relative path
+		assert.Contains(t, output, "jtp cd some-path") // Should show relative path
 	})
 
 	t.Run("should handle main worktree path", func(t *testing.T) {
@@ -879,7 +890,7 @@ func TestDisplaySuccessMessage_Integration(t *testing.T) {
 		assert.Contains(t, output, "✅ Worktree created successfully!")
 		assert.Contains(t, output, "📁 Location: /repo")
 		assert.Contains(t, output, "🌿 Branch: main")
-		assert.Contains(t, output, "wtp cd @")
+		assert.Contains(t, output, "jtp cd @")
 	})
 
 	t.Run("should handle detached HEAD (no branch)", func(t *testing.T) {
@@ -899,7 +910,7 @@ func TestDisplaySuccessMessage_Integration(t *testing.T) {
 		assert.Contains(t, output, "📁 Location: /repo/.worktrees/abc1234")
 		assert.NotContains(t, output, "🌿 Branch:") // Should not show branch line
 		assert.Contains(t, output, "💡 To switch to the new worktree, run:")
-		assert.Contains(t, output, "wtp cd abc1234")
+		assert.Contains(t, output, "jtp cd abc1234")
 	})
 
 	t.Run("should show helpful message when commit-ish is provided", func(t *testing.T) {
@@ -919,7 +930,7 @@ func TestDisplaySuccessMessage_Integration(t *testing.T) {
 		assert.Contains(t, output, "📁 Location: /repo/.worktrees/HEAD~1")
 		assert.Contains(t, output, "🏷️  Commit: HEAD~1") // Show commit reference
 		assert.Contains(t, output, "💡 To switch to the new worktree, run:")
-		assert.Contains(t, output, "wtp cd HEAD~1")
+		assert.Contains(t, output, "jtp cd HEAD~1")
 	})
 }
 
@@ -956,7 +967,7 @@ func (s *sequencedCommandExecutor) Execute(commands []command.Command) (*command
 }
 
 func (m *mockCommandExecutor) Execute(commands []command.Command) (*command.ExecutionResult, error) {
-	m.executedCommands = commands
+	m.executedCommands = append(m.executedCommands, commands...)
 
 	if m.shouldFail {
 		errorMsg := m.errorMsg

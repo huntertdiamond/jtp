@@ -4,6 +4,7 @@ package git
 import (
 	stdErrors "errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -11,14 +12,22 @@ import (
 	"github.com/satococoa/wtp/v2/internal/errors"
 )
 
+const (
+	jjWorkspaceRequiredFields = 2
+	jjWorkspaceBookmarkField  = 2
+	workspaceParentDirPerm    = 0o750
+	remoteBookmarkFields      = 2
+	defaultWorkspaceName      = "default"
+)
+
 // Repository represents a git repository and offers helper methods for worktree operations.
 type Repository struct {
 	path string
 }
 
-// NewRepository constructs a Repository for the given path after validating it is a git repository.
+// NewRepository constructs a Repository for the given path after validating it is a jj repository.
 func NewRepository(path string) (*Repository, error) {
-	if !isGitRepository(path) {
+	if !isJjRepository(path) {
 		return nil, errors.NotInGitRepository()
 	}
 	return &Repository{path: path}, nil
@@ -37,118 +46,213 @@ func (r *Repository) GetRepositoryName() string {
 // GetMainWorktreePath returns the path to the main worktree (original repository)
 // This is useful when running commands from within a worktree
 func (r *Repository) GetMainWorktreePath() (string, error) {
-	// Get the common directory which points to the main repository's .git
-	cmd := exec.Command("git", "rev-parse", "--git-common-dir")
-	cmd.Dir = r.path
-	output, err := cmd.Output()
+	workspaces, err := r.listJjWorkspaces()
 	if err != nil {
-		return "", fmt.Errorf("failed to get main repository path: %w", err)
+		return "", err
+	}
+	if len(workspaces) == 0 {
+		return "", fmt.Errorf("no jj workspaces found")
 	}
 
-	commonDir := strings.TrimSpace(string(output))
-
-	// If commonDir ends with .git, get its parent directory
-	if strings.HasSuffix(commonDir, ".git") {
-		// Get the parent directory of .git
-		parent := filepath.Dir(commonDir)
-		// Convert to absolute path if needed
-		if !filepath.IsAbs(parent) {
-			absPath, absErr := filepath.Abs(filepath.Join(r.path, parent))
-			if absErr != nil {
-				return "", fmt.Errorf("failed to get absolute path: %w", absErr)
-			}
-			return absPath, nil
-		}
-		return parent, nil
-	}
-
-	// If commonDir doesn't end with .git, it's likely already the worktree path
-	if !filepath.IsAbs(commonDir) {
-		absPath, absErr := filepath.Abs(filepath.Join(r.path, commonDir))
-		if absErr != nil {
-			return "", fmt.Errorf("failed to get absolute path: %w", absErr)
-		}
-		return absPath, nil
-	}
-
-	return commonDir, nil
+	return r.workspaceRoot(mainWorkspaceName(workspaces))
 }
 
 // GetWorktrees lists the worktrees associated with the repository.
 func (r *Repository) GetWorktrees() ([]Worktree, error) {
-	cmd := exec.Command("git", "worktree", "list", "--porcelain")
-	cmd.Dir = r.path
-	output, err := cmd.Output()
+	workspaces, err := r.listJjWorkspaces()
 	if err != nil {
-		return nil, fmt.Errorf("failed to list worktrees: %w", err)
+		return nil, err
 	}
 
-	worktrees := parseWorktreeList(string(output))
+	worktrees := make([]Worktree, 0, len(workspaces))
+	mainName := mainWorkspaceName(workspaces)
+	for i := range workspaces {
+		workspace := workspaces[i]
+		root, err := r.workspaceRoot(workspace.Name)
+		if err != nil {
+			return nil, err
+		}
 
-	// The first worktree in the list is always the main worktree
-	if len(worktrees) > 0 {
-		worktrees[0].IsMain = true
+		worktrees = append(worktrees, Worktree{
+			Path:   root,
+			Branch: workspace.DisplayName(),
+			HEAD:   workspace.Head,
+			IsMain: workspace.Name == mainName,
+		})
 	}
 
 	return worktrees, nil
 }
 
-// CreateWorktree creates a new worktree at the given path and optionally checks out the branch.
-func (r *Repository) CreateWorktree(path, branch string) error {
-	args := []string{"worktree", "add"}
-	args = append(args, path)
-	if branch != "" {
-		args = append(args, branch)
+func mainWorkspaceName(workspaces []jjWorkspace) string {
+	for _, workspace := range workspaces {
+		if workspace.Name == defaultWorkspaceName {
+			return workspace.Name
+		}
+	}
+	if len(workspaces) == 0 {
+		return ""
+	}
+	return workspaces[0].Name
+}
+
+type jjWorkspace struct {
+	Name     string
+	Head     string
+	Bookmark string
+}
+
+func (w jjWorkspace) DisplayName() string {
+	if w.Bookmark != "" {
+		return w.Bookmark
+	}
+	return w.Name
+}
+
+func (r *Repository) listJjWorkspaces() ([]jjWorkspace, error) {
+	template := `name ++ "\t" ++ target.commit_id().short() ++ "\t" ++ target.bookmarks() ++ "\n"`
+	cmd := exec.Command("jj", "workspace", "list", "--template", template)
+	cmd.Dir = r.path
+	output, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("failed to list jj workspaces: %w", err)
 	}
 
-	cmd := exec.Command("git", args...)
+	return parseJjWorkspaceList(string(output)), nil
+}
+
+func parseJjWorkspaceList(output string) []jjWorkspace {
+	lines := strings.Split(strings.TrimSpace(output), "\n")
+	workspaces := make([]jjWorkspace, 0, len(lines))
+	for _, line := range lines {
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+
+		parts := strings.Split(line, "\t")
+		if len(parts) < jjWorkspaceRequiredFields {
+			continue
+		}
+
+		workspace := jjWorkspace{
+			Name: strings.TrimSpace(parts[0]),
+			Head: strings.TrimSpace(parts[1]),
+		}
+		if len(parts) > jjWorkspaceBookmarkField {
+			workspace.Bookmark = firstBookmark(parts[jjWorkspaceBookmarkField])
+		}
+		workspaces = append(workspaces, workspace)
+	}
+	return workspaces
+}
+
+func firstBookmark(bookmarks string) string {
+	for _, field := range strings.Fields(bookmarks) {
+		return strings.TrimSuffix(field, "*")
+	}
+	return ""
+}
+
+func (r *Repository) workspaceRoot(name string) (string, error) {
+	cmd := exec.Command("jj", "workspace", "root", "--name", name)
+	cmd.Dir = r.path
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get jj workspace root for %q: %w", name, err)
+	}
+	return strings.TrimSpace(string(output)), nil
+}
+
+// CreateWorktree creates a new worktree at the given path and optionally checks out the branch.
+func (r *Repository) CreateWorktree(path, branch string) error {
+	if err := os.MkdirAll(filepath.Dir(path), workspaceParentDirPerm); err != nil {
+		return fmt.Errorf("failed to create workspace parent directory: %w", err)
+	}
+
+	workspaceName := filepath.Base(path)
+	if branch != "" {
+		workspaceName = branch
+	}
+
+	args := []string{"workspace", "add", "--name", workspaceName}
+	if branch != "" {
+		args = append(args, "--revision", branch)
+	}
+	args = append(args, path)
+
+	// #nosec G204 - args are passed as argv elements; callers validate user-facing refs.
+	cmd := exec.Command("jj", args...)
 	cmd.Dir = r.path
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to create worktree: %w", err)
+		return fmt.Errorf("failed to create jj workspace: %w", err)
 	}
 	return nil
 }
 
 // RemoveWorktree removes the worktree at the provided path, optionally forcing removal.
-func (r *Repository) RemoveWorktree(path string, force bool) error {
-	args := []string{"worktree", "remove"}
-	if force {
-		args = append(args, "--force")
+func (r *Repository) RemoveWorktree(path string, _ bool) error {
+	workspaces, err := r.listJjWorkspaces()
+	if err != nil {
+		return err
 	}
-	args = append(args, path)
 
-	cmd := exec.Command("git", args...)
+	workspaceName := ""
+	targetPath := normalizePathForCompare(path)
+	for _, workspace := range workspaces {
+		root, err := r.workspaceRoot(workspace.Name)
+		if err != nil {
+			return err
+		}
+		if normalizePathForCompare(root) == targetPath {
+			workspaceName = workspace.Name
+			break
+		}
+	}
+	if workspaceName == "" {
+		return fmt.Errorf("workspace for path %q not found", path)
+	}
+
+	cmd := exec.Command("jj", "workspace", "forget", workspaceName)
 	cmd.Dir = r.path
 	if err := cmd.Run(); err != nil {
-		return fmt.Errorf("failed to remove worktree: %w", err)
+		return fmt.Errorf("failed to forget jj workspace: %w", err)
 	}
-	return nil
+	return os.RemoveAll(path)
 }
 
-// ExecuteGitCommand executes a git command in the repository directory
+func normalizePathForCompare(path string) string {
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return filepath.Clean(path)
+	}
+	evaluatedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return filepath.Clean(absPath)
+	}
+	return filepath.Clean(evaluatedPath)
+}
+
+// ExecuteGitCommand executes a jj command in the repository directory
 func (r *Repository) ExecuteGitCommand(args ...string) error {
-	cmd := exec.Command("git", args...)
+	cmd := exec.Command("jj", args...)
 	cmd.Dir = r.path
-	// Debug: print the command being executed
-	// fmt.Printf("DEBUG: Executing: git %s\n", strings.Join(args, " "))
 	output, err := cmd.CombinedOutput()
 	if err != nil {
-		return errors.GitCommandFailed(fmt.Sprintf("git %s", strings.Join(args, " ")), string(output))
+		return errors.GitCommandFailed(fmt.Sprintf("jj %s", strings.Join(args, " ")), string(output))
 	}
 	return nil
 }
 
-// BranchExists checks if a branch exists locally
+// BranchExists checks if a bookmark exists locally.
 func (r *Repository) BranchExists(branch string) (bool, error) {
-	// Validate branch name to prevent command injection
 	if strings.Contains(branch, "..") || strings.ContainsAny(branch, "\n\r") {
 		return false, errors.InvalidBranchName(branch)
 	}
 
-	// #nosec G204 - branch is validated above
-	cmd := exec.Command("git", "show-ref", "--verify", "--quiet", fmt.Sprintf("refs/heads/%s", branch))
+	// #nosec G204 - branch is validated above and passed as an argv element.
+	cmd := exec.Command("jj", "bookmark", "list", branch, "--template", `name ++ "\n"`)
 	cmd.Dir = r.path
-	err := cmd.Run()
+	output, err := cmd.Output()
 	if err != nil {
 		var exitErr *exec.ExitError
 		if stdErrors.As(err, &exitErr) && exitErr.ExitCode() == 1 {
@@ -156,25 +260,28 @@ func (r *Repository) BranchExists(branch string) (bool, error) {
 		}
 		return false, fmt.Errorf("failed to check branch existence: %w", err)
 	}
-	return true, nil
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		if strings.TrimSpace(line) == branch {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
-// GetRemoteBranches returns a map of remote branches by remote name
+// GetRemoteBranches returns a map of tracked remote bookmarks by remote name.
 func (r *Repository) GetRemoteBranches(branch string) (map[string]string, error) {
-	// Validate branch name to prevent command injection
 	if strings.Contains(branch, "..") || strings.ContainsAny(branch, "\n\r") {
 		return nil, errors.InvalidBranchName(branch)
 	}
 
 	remotes := make(map[string]string)
 
-	// Get all remote branches that match the branch name
-	// #nosec G204 - branch is validated above
-	cmd := exec.Command("git", "for-each-ref", "--format=%(refname:short)", fmt.Sprintf("refs/remotes/*/%s", branch))
+	// #nosec G204 - branch is validated above and passed as an argv element.
+	cmd := exec.Command("jj", "bookmark", "list", "--all-remotes", branch, "--template", `name ++ "\t" ++ remote ++ "\n"`)
 	cmd.Dir = r.path
 	output, err := cmd.Output()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get remote branches: %w", err)
+		return nil, fmt.Errorf("failed to get remote bookmarks: %w", err)
 	}
 
 	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
@@ -184,16 +291,61 @@ func (r *Repository) GetRemoteBranches(branch string) (map[string]string, error)
 			continue
 		}
 
-		// Parse remote/branch format
-		const remotePartCount = 2
-		parts := strings.SplitN(line, "/", remotePartCount)
-		if len(parts) == remotePartCount {
-			remote := parts[0]
-			remotes[remote] = line
+		parts := strings.Split(line, "\t")
+		if len(parts) < remoteBookmarkFields {
+			continue
+		}
+		name := strings.TrimSpace(parts[0])
+		remote := strings.TrimSpace(parts[1])
+		if name == branch && remote != "" && remote != "git" {
+			remotes[remote] = fmt.Sprintf("%s@%s", name, remote)
 		}
 	}
 
 	return remotes, nil
+}
+
+// NormalizeRevision converts Git-style remote revisions such as origin/feature/x
+// to jj remote bookmark revisions such as feature/x@origin when the remote exists.
+func (r *Repository) NormalizeRevision(revision string) (string, error) {
+	remote, branch, ok := splitGitRemoteRevision(revision)
+	if !ok {
+		return revision, nil
+	}
+
+	exists, err := r.remoteExists(remote)
+	if err != nil {
+		return "", err
+	}
+	if !exists {
+		return revision, nil
+	}
+
+	return fmt.Sprintf("%s@%s", branch, remote), nil
+}
+
+func splitGitRemoteRevision(revision string) (remote, branch string, ok bool) {
+	remote, branch, ok = strings.Cut(revision, "/")
+	if !ok || remote == "" || branch == "" {
+		return "", "", false
+	}
+	return remote, branch, true
+}
+
+func (r *Repository) remoteExists(remote string) (bool, error) {
+	cmd := exec.Command("jj", "git", "remote", "list")
+	cmd.Dir = r.path
+	output, err := cmd.Output()
+	if err != nil {
+		return false, fmt.Errorf("failed to list remotes: %w", err)
+	}
+	for _, line := range strings.Split(strings.TrimSpace(string(output)), "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && fields[0] == remote {
+			return true, nil
+		}
+	}
+	return false, nil
 }
 
 // ResolveBranch resolves a branch name following git's behavior:
@@ -237,15 +389,17 @@ func (r *Repository) ResolveBranch(branch string) (resolvedBranch string, isRemo
 	return "", false, nil
 }
 
-func isGitRepository(path string) bool {
-	// Use git rev-parse to check if we're in a git repository
-	// This works for both regular repos and worktrees
-	cmd := exec.Command("git", "rev-parse", "--git-dir")
+func isJjRepository(path string) bool {
+	cmd := exec.Command("jj", "root")
 	cmd.Dir = path
 	if err := cmd.Run(); err != nil {
 		return false
 	}
 	return true
+}
+
+func isGitRepository(path string) bool {
+	return isJjRepository(path)
 }
 
 func parseWorktreeList(output string) []Worktree {
