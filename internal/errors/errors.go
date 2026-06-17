@@ -219,7 +219,7 @@ Solution: Run 'jtp init' to create a configuration file`
 		msg += `
 
 Cause: Permission denied reading configuration file
-Solution: Check file permissions with 'ls -la .wtp.yml'`
+Solution: Check file permissions on your jtp/wtp config file`
 	}
 
 	msg += fmt.Sprintf("\n\nOriginal error: %v", parseError)
@@ -343,7 +343,7 @@ Solutions:
 
 Cause: File or command not found
 Solutions:
-  • Check file paths in .wtp.yml
+  • Check file paths in your jtp/wtp config file
   • Ensure the command exists in PATH
   • Use absolute paths for files`
 	} else if strings.Contains(errorStr, "command not found") {
@@ -352,7 +352,7 @@ Solutions:
 Cause: Command not found
 Solutions:
   • Install the required command
-  • Check command spelling in .wtp.yml
+  • Check command spelling in your jtp/wtp config file
   • Use full path to command`
 	}
 

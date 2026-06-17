@@ -8,7 +8,7 @@ This document describes the current implementation shape of `wtp`.
 - Core packages:
   - `internal/command`: typed command builders and execution abstraction
   - `internal/git`: git repository/worktree operations and branch resolution
-  - `internal/config`: `.wtp.yml` schema, defaults, validation, path resolution
+  - `internal/config`: `.jtp.yaml` schema, defaults, validation, path resolution
   - `internal/hooks`: post-create hook execution
   - `internal/errors`: user-facing error helpers
   - `internal/io`, `internal/testutil`: output and test helpers
@@ -50,7 +50,8 @@ Worktree discovery uses `git worktree list --porcelain` parsing.
 
 ## Configuration and Hooks
 
-Configuration file: `.wtp.yml`.
+Configuration file: `.jtp.yaml`. Legacy `.jtp.yml`, `.wtp.yaml`, and `.wtp.yml`
+files are also read for compatibility.
 
 - Default `base_dir`: `../worktrees`
 - Hook types: `copy`, `command`, `symlink`

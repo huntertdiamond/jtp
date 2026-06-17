@@ -47,7 +47,7 @@ cluttering your repo.
 **🧩 Problem:** Create worktree → Copy .env → Install deps → Run
 migrations → Finally start coding<br>
 **✨ jtp:** Configure once in
-`.wtp.yml`, then every `jtp add` runs your setup automatically
+`.jtp.yaml`, then every `jtp add` runs your setup automatically
 
 ```yaml
 hooks:
@@ -216,7 +216,9 @@ jtp exec @ -- pwd
 
 ## Configuration
 
-jtp uses `.wtp.yml` for project-specific configuration:
+jtp uses `.jtp.yaml` for project-specific configuration. For compatibility with
+existing `wtp` setups, it also reads `.jtp.yml`, `.wtp.yaml`, and `.wtp.yml`.
+When more than one exists, the first file in that order wins.
 
 ```yaml
 version: "1.0"
@@ -382,7 +384,7 @@ With the default configuration (`base_dir: "../worktrees"`):
 ```
 <project-root>/
 ├── .git/
-├── .wtp.yml
+├── .jtp.yaml
 └── src/
 
 ../worktrees/

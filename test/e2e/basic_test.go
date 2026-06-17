@@ -51,9 +51,9 @@ func TestInitCommand(t *testing.T) {
 		output, err := repo.RunWTP("init")
 		framework.AssertNoError(t, err)
 		framework.AssertOutputContains(t, output, "Configuration file created")
-		framework.AssertFileExists(t, repo, ".wtp.yml")
+		framework.AssertFileExists(t, repo, ".jtp.yaml")
 
-		content := repo.ReadFile(".wtp.yml")
+		content := repo.ReadFile(".jtp.yaml")
 		framework.AssertTrue(t, strings.Contains(content, "version:"), "Config should contain version")
 		framework.AssertTrue(t, strings.Contains(content, "base_dir:"), "Config should contain base_dir")
 	})

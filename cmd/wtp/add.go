@@ -590,7 +590,10 @@ func setupRepoAndConfig() (*git.Repository, *config.Config, string, error) {
 
 	cfg, err := config.LoadConfig(mainRepoPath)
 	if err != nil {
-		configPath := mainRepoPath + "/.wtp.yml"
+		configPath, _, pathErr := config.ResolveConfigPath(mainRepoPath)
+		if pathErr != nil {
+			configPath = mainRepoPath + "/" + config.ConfigFileName
+		}
 		return nil, nil, "", errors.ConfigLoadFailed(configPath, err)
 	}
 

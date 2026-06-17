@@ -286,9 +286,9 @@ func (r *TestRepo) Path() string {
 	return r.path
 }
 
-// WriteConfig writes a .wtp.yml configuration file into the repository.
+// WriteConfig writes a .jtp.yaml configuration file into the repository.
 func (r *TestRepo) WriteConfig(content string) {
-	configPath := filepath.Join(r.path, ".wtp.yml")
+	configPath := filepath.Join(r.path, ".jtp.yaml")
 	r.env.writeFile(configPath, content)
 }
 

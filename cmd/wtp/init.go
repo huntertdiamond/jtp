@@ -24,7 +24,7 @@ func NewInitCommand() *cli.Command {
 	return &cli.Command{
 		Name:  "init",
 		Usage: "Initialize configuration file",
-		Description: "Creates a .wtp.yml configuration file in the repository root " +
+		Description: "Creates a .jtp.yaml configuration file in the repository root " +
 			"with example hooks and settings.",
 		Action: initCommand,
 	}
@@ -43,9 +43,11 @@ func initCommand(_ context.Context, cmd *cli.Command) error {
 		return errors.NotInGitRepository()
 	}
 
-	// Check if config file already exists
-	configPath := fmt.Sprintf("%s/%s", repo.Path(), config.ConfigFileName)
-	if _, statErr := os.Stat(configPath); statErr == nil {
+	configPath, exists, err := config.ResolveConfigPath(repo.Path())
+	if err != nil {
+		return errors.DirectoryAccessFailed("access configuration file", repo.Path(), err)
+	}
+	if exists {
 		return errors.ConfigAlreadyExists(configPath)
 	}
 

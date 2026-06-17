@@ -37,8 +37,8 @@ type Hook struct {
 }
 
 const (
-	// ConfigFileName is the default filename for the wtp configuration.
-	ConfigFileName = ".wtp.yml"
+	// ConfigFileName is the default filename for the jtp configuration.
+	ConfigFileName = ".jtp.yaml"
 	// CurrentVersion represents the current configuration version written to disk.
 	CurrentVersion = "1.0"
 	// DefaultBaseDir is the default directory for new worktrees relative to a repository.
@@ -52,25 +52,55 @@ const (
 	configFilePermissions = 0o600
 )
 
-// LoadConfig loads configuration from .wtp.yml in the repository root
-func LoadConfig(repoRoot string) (*Config, error) {
+var supportedConfigFileNames = []string{
+	".jtp.yaml",
+	".jtp.yml",
+	".wtp.yaml",
+	".wtp.yml",
+}
+
+// SupportedConfigFileNames returns the config filenames jtp reads, in priority order.
+func SupportedConfigFileNames() []string {
+	return append([]string(nil), supportedConfigFileNames...)
+}
+
+// ResolveConfigPath returns the config path jtp should use for the repository.
+// Existing files are preferred in priority order. If none exist, the default
+// jtp config path is returned.
+func ResolveConfigPath(repoRoot string) (configPath string, exists bool, err error) {
 	cleanedRoot := filepath.Clean(repoRoot)
 	if !filepath.IsAbs(cleanedRoot) {
 		absRoot, err := filepath.Abs(cleanedRoot)
 		if err != nil {
-			return nil, fmt.Errorf("failed to resolve repository root: %w", err)
+			return "", false, fmt.Errorf("failed to resolve repository root: %w", err)
 		}
 		cleanedRoot = absRoot
 	}
 
-	configPath := filepath.Join(cleanedRoot, ConfigFileName)
+	for _, name := range supportedConfigFileNames {
+		configPath := filepath.Join(cleanedRoot, name)
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, true, nil
+		} else if !os.IsNotExist(err) {
+			return "", false, err
+		}
+	}
 
-	// If config file doesn't exist, return default config
-	if _, err := os.Stat(configPath); os.IsNotExist(err) {
+	return filepath.Join(cleanedRoot, ConfigFileName), false, nil
+}
+
+// LoadConfig loads configuration from a supported config file in the repository root.
+func LoadConfig(repoRoot string) (*Config, error) {
+	configPath, exists, err := ResolveConfigPath(repoRoot)
+	if err != nil {
+		return nil, fmt.Errorf("failed to resolve config file: %w", err)
+	}
+
+	if !exists {
 		return &Config{
 			Version: CurrentVersion,
 			Defaults: Defaults{
-				BaseDir: "../worktrees",
+				BaseDir: DefaultBaseDir,
 			},
 			Hooks: Hooks{},
 		}, nil
@@ -96,7 +126,7 @@ func LoadConfig(repoRoot string) (*Config, error) {
 	return &config, nil
 }
 
-// SaveConfig saves configuration to .git-worktree-plus.yml in the repository root
+// SaveConfig saves configuration to the default jtp config file in the repository root.
 func SaveConfig(repoRoot string, config *Config) error {
 	config.ApplyDefaults()
 	if err := config.Validate(); err != nil {

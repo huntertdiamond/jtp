@@ -77,6 +77,72 @@ hooks:
 	}
 }
 
+func TestLoadConfig_SupportedConfigFileNames(t *testing.T) {
+	tests := []struct {
+		name     string
+		fileName string
+		baseDir  string
+	}{
+		{name: "jtp yaml", fileName: ".jtp.yaml", baseDir: "../jtp-yaml"},
+		{name: "jtp yml", fileName: ".jtp.yml", baseDir: "../jtp-yml"},
+		{name: "wtp yaml", fileName: ".wtp.yaml", baseDir: "../wtp-yaml"},
+		{name: "wtp yml", fileName: ".wtp.yml", baseDir: "../wtp-yml"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			configPath := filepath.Join(tempDir, tt.fileName)
+			configContent := `version: "1.0"
+defaults:
+  base_dir: "` + tt.baseDir + `"
+`
+
+			if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+				t.Fatalf("Failed to write test config: %v", err)
+			}
+
+			config, err := LoadConfig(tempDir)
+			if err != nil {
+				t.Fatalf("Expected no error, got %v", err)
+			}
+
+			if config.Defaults.BaseDir != tt.baseDir {
+				t.Errorf("Expected base_dir %q, got %q", tt.baseDir, config.Defaults.BaseDir)
+			}
+		})
+	}
+}
+
+func TestLoadConfig_PrefersJTPConfigOverLegacyWTPConfig(t *testing.T) {
+	tempDir := t.TempDir()
+
+	files := map[string]string{
+		".wtp.yml":  "../legacy",
+		".jtp.yaml": "../current",
+	}
+
+	for fileName, baseDir := range files {
+		configPath := filepath.Join(tempDir, fileName)
+		configContent := `version: "1.0"
+defaults:
+  base_dir: "` + baseDir + `"
+`
+		if err := os.WriteFile(configPath, []byte(configContent), 0644); err != nil {
+			t.Fatalf("Failed to write test config %s: %v", fileName, err)
+		}
+	}
+
+	config, err := LoadConfig(tempDir)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	if config.Defaults.BaseDir != "../current" {
+		t.Errorf("Expected jtp config to take precedence, got base_dir %q", config.Defaults.BaseDir)
+	}
+}
+
 func TestLoadConfig_CopyHookDefaultsToFrom(t *testing.T) {
 	tempDir := t.TempDir()
 	configPath := filepath.Join(tempDir, ConfigFileName)

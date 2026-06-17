@@ -85,6 +85,39 @@ func TestInitCommand_ConfigAlreadyExists(t *testing.T) {
 	assert.Contains(t, err.Error(), "already exists")
 }
 
+func TestInitCommand_LegacyConfigAlreadyExists(t *testing.T) {
+	tempDir := t.TempDir()
+
+	oldDir, _ := os.Getwd()
+	defer func() { _ = os.Chdir(oldDir) }()
+	err := os.Chdir(tempDir)
+	assert.NoError(t, err)
+
+	jjCmd := exec.Command("jj", "git", "init")
+	jjCmd.Dir = tempDir
+	err = jjCmd.Run()
+	if err != nil {
+		t.Skip("jj not available")
+	}
+
+	configPath := filepath.Join(tempDir, ".wtp.yaml")
+	err = os.WriteFile(configPath, []byte("existing config"), 0644)
+	assert.NoError(t, err)
+
+	app := &cli.Command{
+		Commands: []*cli.Command{
+			NewInitCommand(),
+		},
+	}
+
+	ctx := context.Background()
+	err = app.Run(ctx, []string{"jtp", "init"})
+
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "already exists")
+	assert.Contains(t, err.Error(), ".wtp.yaml")
+}
+
 func TestInitCommand_Success(t *testing.T) {
 	// Create a temporary directory
 	tempDir := t.TempDir()
